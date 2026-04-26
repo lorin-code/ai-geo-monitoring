@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="Goodie Logo">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#162b6f"/>
+      <stop offset="50%" stop-color="#1f4dd2"/>
+      <stop offset="100%" stop-color="#5b8cff"/>
+    </linearGradient>
+  </defs>
+  <!-- Rounded square background to ensure a square favicon -->
+  <rect width="512" height="512" rx="96" fill="url(#bg)"/>
+
+  <!-- Stylized G mark -->
+  <g fill="none" stroke="#ffffff" stroke-width="40" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Outer circular stroke forming the G body -->
+    <path d="M336 256c0 44.183-35.817 80-80 80s-80-35.817-80-80 35.817-80 80-80c28 0 52 14 66 36"/>
+    <!-- Corner notch to complete the G -->
+    <polyline points="320,192 384,192 384,256"/>
+  </g>
+  <title>Goodie Logo</title>
+</svg>

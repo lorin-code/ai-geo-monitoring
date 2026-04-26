@@ -1,0 +1,34 @@
+# 环境变量
+.env
+.env.local
+.env.*.local
+!.env.example
+!.env.*.example
+
+# 数据库文件
+*.sqlite
+*.sqlite3
+*.db
+
+# 依赖
+node_modules/
+
+# 日志
+logs
+*.log
+npm-debug.log*
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# 编辑器
+.vscode/*
+.idea/
+*.swp
+*.swo
+*~
+
+# 构建输出
+dist/
+build/

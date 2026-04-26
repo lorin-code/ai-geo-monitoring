@@ -1,0 +1,14 @@
+{
+  "name": "ai-geo-monitoring-system",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently -n backend,next -c cyan,magenta \"npm --prefix backend start\" \"npm --prefix nextjs-frontend run dev -- --webpack -p 3001\"",
+    "dev:backend": "npm --prefix backend start",
+    "dev:frontend": "npm --prefix nextjs-frontend run dev -- --webpack -p 3001",
+    "build": "npm --prefix nextjs-frontend run build",
+    "lint": "npm --prefix nextjs-frontend run lint"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}

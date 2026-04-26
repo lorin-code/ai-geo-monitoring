@@ -1,0 +1,772 @@
+/* Next.js 全局样式 - 合并自 Vite 前端的 index.css, App.css, goodie.css */
+
+/* ==================== 全局基础样式 ==================== */
+:root {
+  font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji", system-ui, Avenir, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+
+  /* Goodie 深色主题变量 */
+  --bg: #0b0e12;
+  --panel: #12161d;
+  --line: #232a33;
+  --text: #9aa3af;
+  --muted: #6b7280;
+  --accent: #60a5fa;
+  --glow: rgba(96,165,250,0.35);
+  --radius: 16px;
+  --radius-lg: 20px;
+  --container: 1140px;
+  --space-xxl: 96px;
+  --space-xl: 64px;
+  --space-lg: 40px;
+  --space-md: 24px;
+  --space-sm: 16px;
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html, body {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+  background-color: #0b1220;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  margin: 0;
+  padding: 0;
+  background-color: #0b1220;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  display: block;
+  min-height: auto;
+  background-color: #0b1220;
+  color: #9aa3af;
+  font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+}
+
+img, svg, video {
+  max-width: 100%;
+  height: auto;
+}
+
+/* ==================== 链接样式 ==================== */
+a {
+  font-weight: 500;
+  color: #646cff;
+  text-decoration: inherit;
+}
+a:hover {
+  color: #535bf2;
+}
+
+/* ==================== 标题样式 ==================== */
+h1 {
+  font-size: 3.2em;
+  line-height: 1.1;
+}
+
+/* ==================== 按钮样式 ==================== */
+button {
+  border-radius: 8px;
+  border: 1px solid transparent;
+  padding: 0.6em 1.2em;
+  font-size: 1em;
+  font-weight: 500;
+  font-family: inherit;
+  background-color: #1a1a1a;
+  cursor: pointer;
+  transition: border-color 0.25s;
+}
+button:hover {
+  border-color: #646cff;
+}
+button:focus,
+button:focus-visible {
+  outline: 4px auto -webkit-focus-ring-color;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    color: #213547;
+    background-color: #ffffff;
+  }
+  a:hover {
+    color: #747bff;
+  }
+  button {
+    background-color: #f9f9f9;
+  }
+}
+
+/* ==================== Layout 样式 ==================== */
+.layout {
+  min-height: 100vh;
+}
+
+.page-container {
+  width: 100%;
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 0 16px;
+}
+
+.section-container {
+  padding: 48px 0;
+}
+
+.logo {
+  color: white;
+  font-size: 20px;
+  font-weight: bold;
+  letter-spacing: 0.5px;
+}
+
+.site-layout-content {
+  background: rgba(255, 255, 255, 0.04);
+  padding: 24px;
+  min-height: calc(100vh - 64px - 48px);
+  border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.25);
+  backdrop-filter: blur(10px);
+}
+
+/* ==================== Ant Design 组件样式覆盖 ==================== */
+.ant-card-head-title {
+  font-size: 18px;
+  font-weight: 500;
+}
+
+.ant-statistic-title {
+  font-size: 16px !important;
+}
+
+.ant-statistic-content {
+  font-size: 28px !important;
+}
+
+/* 卡片统一风格：仅圆角，无阴影，避免多层叠影 */
+.ant-card {
+  border-radius: 12px !important;
+  box-shadow: none !important;
+  background: #ffffff !important;
+  border: 1px solid rgba(0,0,0,0.08) !important;
+  color: #111827;
+}
+.ant-card-head-title,
+.ant-card .ant-typography,
+.ant-card .ant-card-meta-title {
+  color: #111827 !important;
+}
+/* 卡片内部的 Typography 使用深色 */
+.ant-card .ant-typography {
+  color: #111827 !important;
+}
+
+/* 表格视觉优化 */
+.ant-table-wrapper .ant-table {
+  border-radius: 10px;
+  overflow: hidden;
+}
+.ant-table-tbody > tr > td {
+  background: #ffffff;
+  color: #111827;
+}
+.ant-table-tbody > tr:hover > td {
+  background: #f5f7fa;
+}
+
+/* ==================== 顶部导航美化 ==================== */
+.app-header {
+  background: linear-gradient(135deg, #162b6f 0%, #1f4dd2 45%, #5b8cff 100%);
+  color: #fff;
+  box-shadow: 0 6px 18px rgba(31, 77, 210, 0.3);
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  height: 64px;
+  padding: 8px 24px;
+}
+
+.app-header .logo {
+  min-width: 0;
+}
+
+/* ==================== 着陆页：科技感背景与模块 ==================== */
+.landing-hero {
+  position: relative;
+  background: linear-gradient(180deg, #0a0a0a 0%, #0f1114 100%);
+  padding: 120px 24px 72px;
+  text-align: center;
+  overflow: hidden;
+  background: radial-gradient(1200px 600px at 50% -100px, rgba(96,165,250,0.15), transparent 60%),
+              radial-gradient(800px 500px at 90% 0%, rgba(139,92,246,0.12), transparent 65%);
+}
+
+.landing-hero .pulse-dot {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #8ab4ff;
+  opacity: 0.8;
+  animation: pulse 3s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0% { transform: scale(1); opacity: 0.8; }
+  50% { transform: scale(1.8); opacity: 0.25; }
+  100% { transform: scale(1); opacity: 0.8; }
+}
+
+.gradient-text {
+  background: linear-gradient(90deg, #9cc8ff, #ffffff);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.glass-card {
+  background: rgba(22,28,40,0.75) !important;
+  border: 1px solid rgba(255,255,255,0.10) !important;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.35) !important;
+  backdrop-filter: blur(6px);
+}
+
+.ant-btn-ghost {
+  color: #9aa3af !important;
+  border-color: rgba(156,163,175,0.70) !important;
+}
+.ant-btn-ghost:hover {
+  background: rgba(255,255,255,0.08) !important;
+}
+
+/* ==================== 眉线与副标题 ==================== */
+.section-eyebrow, .eyebrow {
+  color: rgba(156,163,175,0.75);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-size: 13px;
+}
+
+.section-eyebrow {
+  font-size: 14px;
+  margin-bottom: 8px;
+}
+
+.section-title {
+  color: #9aa3af;
+}
+
+.section-subtitle {
+  color: rgba(156,163,175,0.85);
+}
+
+/* ==================== 英雄区样式 ==================== */
+.hero-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.hero-left {
+  flex: 1;
+}
+
+.hero-right {
+  flex: 1;
+}
+
+.hero-title {
+  color: #111827;
+  letter-spacing: 0.03em;
+  line-height: 1.06;
+  /* 流式排版：进一步放大桌面端，字符更疏朗 */
+  font-size: clamp(56px, 10vw, 160px);
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.hero-desc {
+  color: rgba(156,163,175,0.90);
+  font-size: 18px;
+  max-width: 720px;
+}
+
+/* 确保 Ant Design Typography 组件不覆盖自定义样式 */
+.hero-title.ant-typography {
+  color: #111827 !important;
+}
+
+.landing-hero .hero-desc.ant-typography {
+  color: rgba(156,163,175,0.90) !important;
+}
+
+.section-subtitle.ant-typography {
+  color: rgba(156,163,175,0.85) !important;
+}
+
+.section-title.ant-typography {
+  color: #9aa3af !important;
+}
+
+/* FAQ 折叠面板中的文字颜色 */
+.faq .ant-typography {
+  color: rgba(156,163,175,0.85) !important;
+}
+
+/* 翻转文字动画 */
+.flip-words {
+  display: inline-block;
+  height: 1em;
+  overflow: hidden;
+  vertical-align: baseline;
+  text-align: left;
+  vertical-align: -0.14em;
+}
+
+.flip-words-inner {
+  display: flex;
+  flex-direction: column;
+  animation: flipWords 8s cubic-bezier(.2,.65,.2,1) infinite;
+  will-change: transform;
+}
+
+.flip-words-inner > span {
+  height: 1em;
+  line-height: 1em;
+  display: block;
+}
+
+@keyframes flipWords {
+  0%, 30% { transform: translateY(0); }
+  33% { transform: translateY(-1.06em); }
+  35%, 65% { transform: translateY(-1em); }
+  68% { transform: translateY(-2.06em); }
+  70%, 100% { transform: translateY(-2em); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .flip-words-inner { animation: none; }
+  .flip-words { animation: none; }
+}
+
+.hero-actions .ant-btn.pill-btn {
+  border-radius: 999px;
+  padding: 0 20px;
+  height: 44px;
+}
+
+.ant-btn-ghost.pill-btn {
+  color: var(--text);
+  border-color: rgba(230,232,235,0.22);
+}
+
+.ant-btn-ghost.pill-btn:hover {
+  background: rgba(255,255,255,0.08);
+}
+
+.hero-media {
+  width: 100%;
+  height: auto;
+  box-sizing: border-box;
+  border-radius: var(--radius-lg);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02)) border-box,
+    radial-gradient(800px 300px at 10% 10%, rgba(96,165,250,0.35), transparent 60%) padding-box,
+    radial-gradient(600px 240px at 90% 0%, rgba(139,92,246,0.28), transparent 60%) padding-box,
+    var(--panel);
+  border: 1px solid rgba(255,255,255,0.12);
+  box-shadow: 0 1px 0 rgba(255,255,255,0.04) inset, 0 40px 100px rgba(0,0,0,0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.hero-media .hero-img {
+  width: 100%;
+  height: auto;
+  object-fit: contain;
+  object-position: center;
+  display: block;
+}
+
+/* ==================== 平台条与 chips ==================== */
+.platform-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+}
+
+.platform-chip {
+  padding: 8px 12px;
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 999px;
+  color: #9aa3af;
+  background: rgba(255,255,255,0.04);
+}
+
+.platform-logo {
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: none;
+  box-shadow: none;
+  display: block;
+  object-fit: contain;
+  transform-origin: center;
+  transition: transform .18s ease, filter .18s ease;
+  will-change: transform, filter;
+}
+
+.platform-logo:hover {
+  transform: scale(1.06);
+  filter: brightness(1.08) saturate(1.06);
+}
+
+@media (min-width: 768px) {
+  .platform-logo { width: 38px; height: 38px; }
+}
+
+/* ==================== 顶部 logo 与站点标题 ==================== */
+.site-logo {
+  display: inline-block;
+  filter: drop-shadow(0 6px 20px rgba(96,165,250,0.25));
+  border-radius: 6px;
+  max-width: 100%;
+  height: 1em;
+  width: auto;
+  vertical-align: middle;
+}
+
+.site-title {
+  color: var(--text);
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: clamp(120px, 40vw, 360px);
+}
+
+@media (max-width: 480px) {
+  .site-title { display: none; }
+}
+
+/* ==================== 卡片面板 ==================== */
+.card-plain {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: var(--space-md);
+  box-shadow: 0 1px 0 rgba(255,255,255,0.04) inset, 0 16px 40px rgba(0,0,0,0.35);
+  transition: border-color .2s ease, box-shadow .2s ease;
+}
+
+.card-plain:hover {
+  border-color: rgba(96,165,250,0.45);
+  box-shadow: 0 1px 0 rgba(255,255,255,0.06) inset, 0 24px 60px rgba(96,165,250,0.18);
+}
+
+.grid-3 .card-plain .section-title {
+  color: #fff;
+  margin-top: 0;
+}
+
+/* ==================== 栅格与布局 ==================== */
+.grid-3 {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+
+@media (min-width: 768px) {
+  .grid-3 { grid-template-columns: 1fr 1fr 1fr; }
+}
+
+.section-lead {
+  margin-top: 8px;
+  max-width: 780px;
+}
+
+/* ==================== 步骤列表 ==================== */
+.step-list {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+}
+
+@media (min-width: 768px) {
+  .step-list {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+}
+
+.step-item {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 16px 18px;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 14px;
+  background: rgba(255,255,255,0.03);
+}
+
+.step-index {
+  font-weight: 700;
+  color: #9cc8ff;
+  min-width: 28px;
+}
+
+/* ==================== FAQ 样式 ==================== */
+.faq { margin-top: 8px; }
+
+.faq .ant-collapse-item {
+  border-bottom: 1px solid var(--line);
+}
+
+.faq .ant-collapse-header {
+  color: var(--text);
+}
+
+.faq .ant-collapse-content {
+  background: var(--panel);
+  border: none;
+}
+
+/* ==================== 分割线与次要标题 ==================== */
+.divider {
+  width: 100%;
+  height: 1px;
+  background: linear-gradient(90deg, rgba(255,255,255,0), rgba(255,255,255,0.08), rgba(255,255,255,0));
+  margin: 28px 0;
+}
+
+/* ==================== Eyebrow pill 样式 ==================== */
+.eyebrow-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 10px 16px;
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  font-size: 14px;
+  line-height: 1.2;
+  font-weight: 600;
+  margin-bottom: 12px;
+  color: var(--accent);
+  background: rgba(96, 165, 250, 0.10);
+}
+
+/* ==================== 分栏布局 ==================== */
+.section-split {
+  display: flex;
+  align-items: stretch;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.split-left {
+  flex: 0 0 48%;
+  min-width: 300px;
+}
+
+.split-right {
+  flex: 1 1 52%;
+  max-width: 640px;
+  display: flex;
+  align-items: center;
+}
+
+@media (max-width: 768px) {
+  .section-split { flex-direction: column; gap: 16px; }
+  .split-right { max-width: none; }
+}
+
+/* ==================== 响应式 ==================== */
+.logo-wall {
+  grid-template-columns: repeat(6, 1fr);
+}
+
+@media (max-width: 1024px) {
+  .logo-wall { grid-template-columns: repeat(4, 1fr); }
+}
+
+@media (max-width: 768px) {
+  .logo-wall { grid-template-columns: repeat(3, 1fr); }
+}
+
+@media (max-width: 480px) {
+  .logo-wall { grid-template-columns: repeat(2, 1fr); }
+}
+
+.compare-table {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+@media (max-width: 768px) {
+  .compare-table { grid-template-columns: 1fr; }
+}
+
+.pill-btn {
+  border-radius: 999px !important;
+  padding: 0 22px !important;
+  height: 42px;
+  font-weight: 600;
+}
+
+/* ==================== 功能条与能力列表 ==================== */
+.feature-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: center;
+}
+
+.feature-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 999px;
+  background: rgba(255,255,255,0.04);
+  color: #9aa3af;
+}
+
+.ability-list {
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 18px;
+  background: rgba(255,255,255,0.03);
+}
+
+.ability-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 18px 20px;
+}
+
+.ability-item + .ability-item {
+  border-top: 1px solid rgba(255,255,255,0.07);
+}
+
+.ability-icon {
+  color: #9cc8ff;
+  font-size: 20px;
+  margin-top: 2px;
+}
+
+.ability-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.ability-desc {
+  margin: 6px 0 0;
+  color: rgba(156,163,175,0.80);
+}
+
+/* ==================== 其他 ==================== */
+.logo-wall {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 12px;
+  padding: 16px 0;
+}
+
+.logo-chip {
+  background: rgba(22,28,40,0.6);
+  border: 1px solid rgba(255,255,255,0.10);
+  color: #cfe0ff;
+  border-radius: 10px;
+  padding: 8px 12px;
+  text-align: center;
+}
+
+.metrics-grid {
+  margin-top: 8px;
+}
+
+.metric-badge {
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.12);
+  color: #cfe0ff;
+  border-radius: 10px;
+  padding: 10px 12px;
+  text-align: center;
+}
+
+.quote-card {
+  padding: 24px;
+}
+
+.compare-card {
+  padding: 16px;
+  border-radius: 12px;
+  background: rgba(22,28,40,0.75);
+  border: 1px solid rgba(255,255,255,0.1);
+}
+
+.compare-card h4 {
+  color: #9aa3af;
+  margin-bottom: 12px;
+}
+
+.compare-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: rgba(156,163,175,0.90);
+  padding: 6px 0;
+}
+
+.compare-item .ok { color: #6bd675; }
+.compare-item .no { color: #ff7a7a; }
+
+.cta-banner {
+  background: rgba(22,28,40,0.75);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 14px;
+  padding: 24px;
+  text-align: center;
+}
+
+.illus-wrapper {
+  width: 100%;
+  max-width: 780px;
+  margin: 0 auto 20px;
+}
+
+.illus-glow {
+  filter: blur(10px);
+  opacity: 0.55;
+}
+
+.card-illus {
+  margin: 8px 0 4px;
+}
+
+.glass-card .card-illus .illus-wrapper {
+  opacity: 0.95;
+}
