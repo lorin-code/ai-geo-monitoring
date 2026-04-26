@@ -16,6 +16,7 @@ AI GEO Monitoring System 是一个面向 Generative Engine Optimization（GEO）
   - 管理后台：用户、任务、会员、系统配置管理
   - SQLite 本地数据库自动初始化
   - 前后端统一启动，便于本地开发和部署
+  - （暂未集成联网模式）
 ## 适用场景
 
   - 品牌在 AI 搜索结果中的可见性监测
