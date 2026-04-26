@@ -7,6 +7,22 @@ AI GEO Monitoring System 是一个面向 Generative Engine Optimization（GEO）
 <img width="3024" height="1656" alt="image" src="https://github.com/user-attachments/assets/d6dcaae5-6fea-4780-b45a-3ed466368fd6" />
 <img width="3024" height="1656" alt="image" src="https://github.com/user-attachments/assets/a5f15527-7c77-42a1-b017-e41d90cdd9f6" />
 
+## 核心功能
+
+  - GEO 检测任务创建与记录
+  - 多平台 AI 回答结果监测
+  - 品牌提及、关键词命中与结果详情分析
+  - 用户登录、权限与会员额度管理
+  - 管理后台：用户、任务、会员、系统配置管理
+  - SQLite 本地数据库自动初始化
+  - 前后端统一启动，便于本地开发和部署
+## 适用场景
+
+  - 品牌在 AI 搜索结果中的可见性监测
+  - GEO / AEO / AI Search Optimization 数据分析
+  - 生成式搜索引擎中的竞品曝光研究
+  - AI 平台回答内容的长期追踪与对比
+
 
 
 ## 当前架构
