@@ -2,6 +2,13 @@
 
 AI GEO Monitoring System 是一个面向 Generative Engine Optimization（GEO）的监测系统，用于观察品牌在 AI 搜索、AI 问答和大模型回答中的曝光、提及与推荐表现。
 
+## 系统演示
+<img width="3024" height="1656" alt="image" src="https://github.com/user-attachments/assets/b23d4ce5-cd35-425c-962c-64bbb90b8e5b" />
+<img width="3024" height="1656" alt="image" src="https://github.com/user-attachments/assets/d6dcaae5-6fea-4780-b45a-3ed466368fd6" />
+<img width="3024" height="1656" alt="image" src="https://github.com/user-attachments/assets/a5f15527-7c77-42a1-b017-e41d90cdd9f6" />
+
+
+
 ## 当前架构
 
 - 前端：Next.js，目录为 `nextjs-frontend/`
