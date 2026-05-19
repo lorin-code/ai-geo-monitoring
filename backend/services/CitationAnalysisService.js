@@ -1,4 +1,8 @@
 class CitationAnalysisService {
+  NON_DOMAIN_TLDS = new Set([
+    'js'
+  ]);
+
   TRACKING_QUERY_KEYS = new Set([
     'utm_source',
     'utm_medium',
@@ -33,8 +37,10 @@ class CitationAnalysisService {
     if (!value || value.includes('..') || /[\s/:：]/.test(value)) return false;
     const labels = value.split('.');
     if (labels.length < 2) return false;
+    const tld = labels[labels.length - 1].toLowerCase();
+    if (this.NON_DOMAIN_TLDS.has(tld)) return false;
     return labels.every((label) => /^[a-z0-9-]+$/i.test(label) && !label.startsWith('-') && !label.endsWith('-'))
-      && /^[a-z]{2,}$|^xn--[a-z0-9-]+$/i.test(labels[labels.length - 1]);
+      && /^[a-z]{2,}$|^xn--[a-z0-9-]+$/i.test(tld);
   }
 
   sameOrSubdomain(domain, rootDomain) {
@@ -53,10 +59,17 @@ class CitationAnalysisService {
     const cleaned = this.stripTrailingPunctuation(String(value || '').trim());
     if (!cleaned || /\s/.test(cleaned)) return '';
     if (/^https?:\/\//i.test(cleaned)) return cleaned;
-    if (/^(?:www\.)?(?:[a-z0-9-]+\.)+[a-z]{2,}(?::\d+)?(?:\/|\?|#|$)/i.test(cleaned)) {
+    if (this.isLikelyBareUrl(cleaned)) {
       return `https://${cleaned}`;
     }
     return '';
+  }
+
+  isLikelyBareUrl(value) {
+    const text = String(value || '').trim();
+    const match = text.match(/^(www\.)?(?:[a-z0-9-]+\.)+[a-z]{2,}(?::\d+)?(\/[^\s]*)?(\?[^\s]*)?(#[^\s]*)?$/i);
+    if (!match) return false;
+    return Boolean(match[1] || match[2] || match[3] || match[4]);
   }
 
   extractUrlsFromText(text) {
@@ -70,7 +83,7 @@ class CitationAnalysisService {
     const bareUrlPattern = /(^|[\s:：（(【《\["'“‘])((?:www\.)?(?:[a-z0-9-]+\.)+[a-z]{2,}(?::\d+)?(?:\/[^\s）)\]}>】》」』，。；;、"'”’]*)?)/gi;
     for (const match of source.matchAll(bareUrlPattern)) {
       const value = this.stripTrailingPunctuation(match[2]);
-      if (value) matches.push({ index: match.index + String(match[1] || '').length, url: `https://${value}` });
+      if (this.isLikelyBareUrl(value)) matches.push({ index: match.index + String(match[1] || '').length, url: `https://${value}` });
     }
     return matches.sort((a, b) => a.index - b.index).map((item) => item.url);
   }
@@ -198,6 +211,7 @@ class CitationAnalysisService {
       })
       .filter((source) => source?.domain)
       .filter(Boolean)
+      .filter((source) => this.isValidDomain(source.domain))
       .filter((source) => {
         const key = source.url ? source.url.toLowerCase() : `domain:${source.domain.toLowerCase()}`;
         if (seen.has(key)) return false;

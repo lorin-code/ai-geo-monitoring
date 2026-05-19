@@ -523,6 +523,25 @@ test('ignores invalid stored domain-only citation sources', () => {
   assert.deepEqual(result.domains.map((item) => item.domain), ['example.com']);
 });
 
+test('ignores stored citation urls whose domain is a technology suffix', () => {
+  const result = SourceAnalysisService.summarize([
+    {
+      id: 1,
+      question_record_id: 10,
+      platform: 'doubao',
+      created_at: '2026-05-19T12:00:00Z',
+      citation_sources: [
+        { url: 'https://node.js', domain: 'node.js' },
+        { url: 'https://example.com/a', domain: 'example.com' }
+      ]
+    }
+  ]);
+
+  assert.equal(result.summary.total_citations, 1);
+  assert.deepEqual(result.urls.map((item) => item.url), ['https://example.com/a']);
+  assert.deepEqual(result.domains.map((item) => item.domain), ['example.com']);
+});
+
 test('deduplicates domain-only citation sources when the same answer already has a URL for that domain', () => {
   const result = SourceAnalysisService.summarize([
     {

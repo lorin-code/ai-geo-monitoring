@@ -43,6 +43,22 @@ test('returns empty citation summary for responses without links', () => {
   });
 });
 
+test('does not treat technology names with dotted suffixes as citation urls', () => {
+  const result = CitationAnalysisService.extractSources({
+    responseText: '平台基于 Node.js、Vue.js 和 TypeScript 构建，适合前后端一体化开发。另见 https://node.js。',
+    aiResponse: {
+      citations: [
+        { domain: 'node.js' }
+      ]
+    },
+    brand: {},
+    competitors: []
+  });
+
+  assert.deepEqual(result.sources, []);
+  assert.equal(result.citation_count, 0);
+});
+
 test('matches owned and competitor domains regardless of leading www', () => {
   const result = CitationAnalysisService.extractSources({
     responseText: '参考 https://michelin.com.cn/tyres 和 https://www.competitor.cn/article',
