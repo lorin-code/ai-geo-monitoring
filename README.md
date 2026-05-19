@@ -14,8 +14,9 @@ GoodieAI GEO Monitoring System 是一个面向 Generative Engine Optimization（
   - 品牌提及、关键词命中与结果详情分析
   - 用户登录、权限与会员额度管理
   - 管理后台：用户、任务、会员、系统配置管理
-  - SQLite 本地数据库自动初始化
-  - 前后端统一启动，便于本地开发和部署
+  - 本地 SQLite 数据库自动初始化
+  - 生产环境可通过 `DATABASE_URL` 使用外部 Postgres 数据库
+  - 前后端统一启动，便于本地开发
   - （暂未集成联网模式）
 ## 适用场景
 
@@ -30,7 +31,7 @@ GoodieAI GEO Monitoring System 是一个面向 Generative Engine Optimization（
 
 - 前端：Next.js，目录为 `nextjs-frontend/`
 - 后端：Node.js + Express，目录为 `backend/`
-- 数据库：SQLite，默认文件为 `backend/database.sqlite`
+- 数据库：本地默认使用 SQLite（`backend/database.sqlite`），生产环境可通过 `DATABASE_URL` 切换到外部 Postgres
 
 ## 快速开始
 
@@ -49,7 +50,7 @@ cp backend/.env.example backend/.env
 cp nextjs-frontend/.env.example nextjs-frontend/.env.local
 ```
 
-然后编辑 `backend/.env`，至少填写 `JWT_SECRET`、`DEFAULT_ADMIN_PASSWORD` 和需要使用的 AI 平台 API Key。
+然后编辑 `backend/.env`，至少填写 `JWT_SECRET`、`DEFAULT_ADMIN_PASSWORD` 和需要使用的 AI 平台 API Key。生产环境还应配置 `ALLOWED_ORIGINS`，并按需配置 `DATABASE_URL`。
 
 统一启动前后端：
 
@@ -80,7 +81,7 @@ npm run lint         # 检查 Next.js 前端
 - 演示用户：`demo`
 - 演示用户默认密码：`demo-password`
 
-生产环境部署后必须立即修改默认管理员密码。
+生产环境部署后必须立即修改默认管理员密码，并确认 `.env`、数据库文件和平台环境变量没有提交到 Git。
 
 ## 文档
 
@@ -88,5 +89,4 @@ npm run lint         # 检查 Next.js 前端
 - [接口文档](docs/API.md)
 - [环境变量](docs/ENVIRONMENT.md)
 - [部署与运维](docs/DEPLOYMENT.md)
-- [Vercel 部署](docs/VERCEL.md)
 - [安全加固说明](docs/SECURITY.md)
