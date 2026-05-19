@@ -108,7 +108,9 @@ class AIPlatformService {
         const status = error.response?.status;
         const data = error.response?.data;
         const hint = code === 'ENOTFOUND' ? ' • DNS解析失败，请配置代理或检查网络连接' : '';
-        const summary = `[${platform}] ${code} ${error.message}` + (status ? ` (status ${status})` : '') + hint;
+        const providerErrorCode = this.extractProviderErrorCode(data);
+        const providerDetail = providerErrorCode ? ` provider_code=${providerErrorCode}` : '';
+        const summary = `[${platform}] ${code} ${error.message}` + (status ? ` (status ${status})` : '') + providerDetail + hint;
         console.error('平台调用失败:', summary, data ? 'response: [redacted]' : '');
         const retryable = code === 'ECONNABORTED' || code === 'ENOTFOUND' || code === 'ECONNRESET' || status === 429 || (status && status >= 500);
         if (attempt < MAX_ATTEMPTS && retryable) {
@@ -124,6 +126,22 @@ class AIPlatformService {
       }
     }
     return { success: false, error: lastError?.message || '未知错误', platform };
+  }
+
+  extractProviderErrorCode(data) {
+    if (!data || typeof data !== 'object') return '';
+    const candidates = [
+      data.error?.code,
+      data.error?.type,
+      data.errorCode,
+      data.code,
+      data.type
+    ];
+    const value = candidates
+      .map((item) => String(item || '').trim())
+      .find(Boolean);
+    if (!value) return '';
+    return value.replace(/[^a-zA-Z0-9_.:-]/g, '').slice(0, 80);
   }
 
   getApiUrl(platform) {

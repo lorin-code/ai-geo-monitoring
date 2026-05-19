@@ -100,7 +100,7 @@ test('does not log raw ai platform error response payloads', async () => {
     const error = new Error('request failed');
     error.response = {
       status: 400,
-      data: { error: { message: 'provider raw detail', token: 'secret-token' } }
+      data: { error: { code: 'AccountOverdueError', message: 'provider raw detail', token: 'secret-token' } }
     };
     throw error;
   };
@@ -110,6 +110,8 @@ test('does not log raw ai platform error response payloads', async () => {
     const result = await AIPlatformService.queryPlatform('deepseek', '测试问题');
     assert.equal(result.success, false);
     assert.equal(logs.some((line) => line.includes('status 400')), true);
+    assert.equal(logs.some((line) => line.includes('AccountOverdueError')), true);
+    assert.equal(result.error.includes('AccountOverdueError'), true);
     assert.equal(logs.some((line) => line.includes('secret-token')), false);
     assert.equal(logs.some((line) => line.includes('provider raw detail')), false);
   } finally {
