@@ -5,6 +5,11 @@
 - 服务器具备 Nginx 或其他反向代理能力
 - 已准备域名与证书（建议启用 HTTPS）
 
+## Vercel 部署
+- 前端可以部署到 Vercel，Root Directory 选择 `nextjs-frontend`。
+- 后端当前是常驻 Express 服务并依赖 SQLite/定时任务，不建议直接部署为 Vercel Serverless Function。
+- Vercel 前端通过 `API_BASE_URL` 反代到外部后端，详细步骤见 [Vercel 部署](VERCEL.md)。
+
 ## 环境变量与配置
 - 本地开发可先复制模板：
   ```bash
@@ -42,7 +47,7 @@
   - `JWT_SECRET` 必须使用强随机值（建议使用 `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"` 生成）
   - `ALLOWED_ORIGINS` 必须设置为实际使用的域名，多个域名用逗号分隔
   - **部署后立即修改默认管理员密码**
-- 当前数据库配置为 SQLite（`backend/config/database.js`，默认 `database.sqlite`）。生产建议迁移到托管数据库（如 MySQL）并调整此文件。
+- 生产建议配置 `DATABASE_URL` 使用托管 Postgres（如 Supabase）。未配置时会使用 SQLite（`backend/config/database.js`，默认 `database.sqlite`）。
 
 ## 构建与运行（生产）
 - 安装依赖：

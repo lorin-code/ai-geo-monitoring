@@ -88,4 +88,5 @@ npm run lint         # 检查 Next.js 前端
 - [接口文档](docs/API.md)
 - [环境变量](docs/ENVIRONMENT.md)
 - [部署与运维](docs/DEPLOYMENT.md)
+- [Vercel 部署](docs/VERCEL.md)
 - [安全加固说明](docs/SECURITY.md)

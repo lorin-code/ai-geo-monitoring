@@ -9,7 +9,8 @@ router.get('/plans', adminRequired, async (req, res) => {
     const plans = await MembershipPlan.findAll();
     res.json({ success: true, data: plans });
   } catch (error) {
-    res.status(500).json({ success: false, message: '获取会员方案失败', error: error.message });
+    console.error('获取会员方案失败:', error);
+    res.status(500).json({ success: false, message: '获取会员方案失败' });
   }
 });
 
@@ -25,7 +26,8 @@ router.put('/plans/:level', adminRequired, async (req, res) => {
     await plan.update(payload);
     res.json({ success: true, message: '会员方案已更新' });
   } catch (error) {
-    res.status(500).json({ success: false, message: '更新会员方案失败', error: error.message });
+    console.error('更新会员方案失败:', error);
+    res.status(500).json({ success: false, message: '更新会员方案失败' });
   }
 });
 
@@ -46,7 +48,8 @@ router.post('/plans/resetAll', adminRequired, async (req, res) => {
     }
     res.json({ success: true, message: '全部会员方案已重置为默认值' });
   } catch (error) {
-    res.status(500).json({ success: false, message: '批量重置失败', error: error.message });
+    console.error('批量重置失败:', error);
+    res.status(500).json({ success: false, message: '批量重置失败' });
   }
 });
 
@@ -67,7 +70,8 @@ router.post('/plans/:level/reset', adminRequired, async (req, res) => {
     await plan.update(DEFAULTS[level]);
     res.json({ success: true, message: '已重置为默认方案' });
   } catch (error) {
-    res.status(500).json({ success: false, message: '重置默认方案失败', error: error.message });
+    console.error('重置默认方案失败:', error);
+    res.status(500).json({ success: false, message: '重置默认方案失败' });
   }
 });
 

@@ -15,6 +15,14 @@ const QuestionRecord = sequelize.define('QuestionRecord', {
       key: 'id'
     }
   },
+  project_id: {
+    type: DataTypes.INTEGER,
+    allowNull: true
+  },
+  tracked_prompt_id: {
+    type: DataTypes.INTEGER,
+    allowNull: true
+  },
   platform: {
     type: DataTypes.ENUM('doubao', 'deepseek', 'kimi', 'qianwen'),
     allowNull: false
@@ -54,6 +62,12 @@ const QuestionRecord = sequelize.define('QuestionRecord', {
   indexes: [
     {
       fields: ['user_id']
+    },
+    {
+      fields: ['project_id']
+    },
+    {
+      fields: ['tracked_prompt_id']
     },
     {
       fields: ['platform']

@@ -1,14 +1,34 @@
 const express = require('express');
 const router = express.Router();
-const { sequelize, QuestionRecord, ResultDetail, User } = require('../models');
+const { sequelize, QuestionRecord, User, VisibilityMetric } = require('../models');
 const { Op } = require('sequelize');
 const { adminRequired, authRequired } = require('../middleware/auth');
+const AccessControlService = require('../services/AccessControlService');
+const StatisticsService = require('../services/StatisticsService');
+const ProjectMetricsService = require('../services/ProjectMetricsService');
+
+const MAINLAND_MONITORING_PLATFORMS = ['doubao', 'deepseek'];
+
+function ensureUserScopedAccess(req, res, userId) {
+  if (AccessControlService.canAccessUser(req.user, userId)) return true;
+  res.status(403).json({ success: false, message: '无权访问' });
+  return false;
+}
+
+function withMainlandPlatformScope(where = {}) {
+  return {
+    ...where,
+    platform: { [Op.in]: MAINLAND_MONITORING_PLATFORMS }
+  };
+}
 
 // 管理员概览统计：用户总数、今日所有用户检测次数、累计所有检测次数
 router.get('/overview', adminRequired, async (req, res) => {
   try {
     const totalUsers = await User.count();
-    const totalDetections = await QuestionRecord.count();
+    const totalDetections = await QuestionRecord.count({
+      where: withMainlandPlatformScope()
+    });
 
     const startOfToday = new Date();
     startOfToday.setHours(0, 0, 0, 0);
@@ -16,22 +36,22 @@ router.get('/overview', adminRequired, async (req, res) => {
     startOfYesterday.setDate(startOfYesterday.getDate() - 1);
     const endOfYesterday = new Date(startOfToday);
     const todayDetections = await QuestionRecord.count({
-      where: { created_at: { [Op.gte]: startOfToday } }
+      where: withMainlandPlatformScope({ created_at: { [Op.gte]: startOfToday } })
     });
 
     const yesterdayDetections = await QuestionRecord.count({
-      where: { created_at: { [Op.between]: [startOfYesterday, endOfYesterday] } }
+      where: withMainlandPlatformScope({ created_at: { [Op.between]: [startOfYesterday, endOfYesterday] } })
     });
 
     const todayCompleted = await QuestionRecord.count({
-      where: { status: 'completed', created_at: { [Op.gte]: startOfToday } }
+      where: withMainlandPlatformScope({ status: 'completed', created_at: { [Op.gte]: startOfToday } })
     });
     const todayFailed = await QuestionRecord.count({
-      where: { status: 'failed', created_at: { [Op.gte]: startOfToday } }
+      where: withMainlandPlatformScope({ status: 'failed', created_at: { [Op.gte]: startOfToday } })
     });
 
     const platformDistributionToday = await QuestionRecord.findAll({
-      where: { created_at: { [Op.gte]: startOfToday } },
+      where: withMainlandPlatformScope({ created_at: { [Op.gte]: startOfToday } }),
       attributes: ['platform', [sequelize.fn('COUNT', sequelize.col('id')), 'count']],
       group: ['platform'],
       order: [[sequelize.fn('COUNT', sequelize.col('id')), 'DESC']]
@@ -45,7 +65,7 @@ router.get('/overview', adminRequired, async (req, res) => {
       const dayEnd = new Date(dayStart);
       dayEnd.setDate(dayEnd.getDate() + 1);
       const count = await QuestionRecord.count({
-        where: { created_at: { [Op.between]: [dayStart, dayEnd] } }
+        where: withMainlandPlatformScope({ created_at: { [Op.between]: [dayStart, dayEnd] } })
       });
       const label = `${dayStart.getMonth() + 1}-${String(dayStart.getDate()).padStart(2, '0')}`;
       trend7d.push({ date: label, count });
@@ -67,7 +87,7 @@ router.get('/overview', adminRequired, async (req, res) => {
     });
   } catch (error) {
     console.error('获取管理员概览统计失败:', error);
-    res.status(500).json({ success: false, message: '获取管理员概览统计失败', error: error.message });
+    res.status(500).json({ success: false, message: '获取管理员概览统计失败' });
   }
 });
 
@@ -75,6 +95,7 @@ router.get('/overview', adminRequired, async (req, res) => {
 router.get('/user/:userId', authRequired, async (req, res) => {
   try {
     const { userId } = req.params;
+    if (!ensureUserScopedAccess(req, res, userId)) return;
     const { startDate, endDate } = req.query;
 
     const whereClause = { user_id: userId };
@@ -86,20 +107,20 @@ router.get('/user/:userId', authRequired, async (req, res) => {
 
     // 总检测次数
     const totalDetections = await QuestionRecord.count({
-      where: whereClause
+      where: withMainlandPlatformScope(whereClause)
     });
 
     // 成功检测次数
     const successfulDetections = await QuestionRecord.count({
-      where: {
+      where: withMainlandPlatformScope({
         ...whereClause,
         status: 'completed'
-      }
+      })
     });
 
     // 平台分布统计
     const platformStats = await QuestionRecord.findAll({
-      where: whereClause,
+      where: withMainlandPlatformScope(whereClause),
       attributes: [
         'platform',
         [sequelize.fn('COUNT', sequelize.col('id')), 'count']
@@ -108,12 +129,16 @@ router.get('/user/:userId', authRequired, async (req, res) => {
       order: [[sequelize.fn('COUNT', sequelize.col('id')), 'DESC']]
     });
 
-    // 平均推荐率与曝光率占位（当前未存储相关字段，返回 0）
-    const avgStats = {
-      avg_recommendation_rate: 0,
-      avg_exposure_rate: 0,
-      avg_recommendation_count: 0
-    };
+    const metricWhereClause = { user_id: userId };
+    if (startDate && endDate) {
+      metricWhereClause.created_at = {
+        [Op.between]: [new Date(startDate), new Date(endDate)]
+      };
+    }
+    const visibilityMetrics = await VisibilityMetric.findAll({
+      where: withMainlandPlatformScope(metricWhereClause),
+      attributes: ['brand_mentioned', 'brand_recommended', 'brand_mentions']
+    });
 
     res.json({
       success: true,
@@ -122,7 +147,7 @@ router.get('/user/:userId', authRequired, async (req, res) => {
         successful_detections: successfulDetections,
         success_rate: totalDetections > 0 ? (successfulDetections / totalDetections * 100).toFixed(2) : 0,
         platform_distribution: platformStats,
-        average_stats: avgStats
+        average_stats: StatisticsService.buildUserAverageStats(visibilityMetrics)
       }
     });
 
@@ -130,8 +155,7 @@ router.get('/user/:userId', authRequired, async (req, res) => {
     console.error('获取用户统计数据失败:', error);
     res.status(500).json({
       success: false,
-      message: '获取用户统计数据失败',
-      error: error.message
+      message: '获取用户统计数据失败'
     });
   }
 });
@@ -140,6 +164,7 @@ router.get('/user/:userId', authRequired, async (req, res) => {
 router.get('/keywords/:userId', authRequired, async (req, res) => {
   try {
     const { userId } = req.params;
+    if (!ensureUserScopedAccess(req, res, userId)) return;
     const { startDate, endDate } = req.query;
 
     const whereClause = { user_id: userId };
@@ -151,78 +176,26 @@ router.get('/keywords/:userId', authRequired, async (req, res) => {
 
     // 获取所有品牌关键词
     const records = await QuestionRecord.findAll({
-      where: whereClause,
-      attributes: ['brand_keywords', 'platform', 'created_at'],
+      where: withMainlandPlatformScope(whereClause),
+      attributes: ['brand_keywords', 'platform', 'created_at', 'result_summary'],
       include: [{
-        model: ResultDetail,
-        attributes: ['recommendation_count', 'exposure_rate', 'recommendation_rate'],
-        where: { parsing_status: 'completed' },
+        model: VisibilityMetric,
+        as: 'visibilityMetric',
+        attributes: ['brand_mentioned', 'brand_recommended', 'brand_mentions'],
         required: false
       }]
     });
 
-    const keywordStats = {};
-
-    records.forEach(record => {
-      const keywords = record.brand_keywords.split(',').map(k => k.trim());
-      
-      keywords.forEach(keyword => {
-        if (!keywordStats[keyword]) {
-          keywordStats[keyword] = {
-            keyword,
-            total_mentions: 0,
-            total_recommendations: 0,
-            avg_exposure_rate: 0,
-            avg_recommendation_rate: 0,
-            platform_distribution: {},
-            records: []
-          };
-        }
-
-        const stats = keywordStats[keyword];
-        stats.total_mentions++;
-        
-        if (record.resultDetail) {
-          stats.total_recommendations += record.resultDetail.recommendation_count || 0;
-          stats.avg_exposure_rate += record.resultDetail.exposure_rate || 0;
-          stats.avg_recommendation_rate += record.resultDetail.recommendation_rate || 0;
-        }
-
-        // 平台分布
-        if (!stats.platform_distribution[record.platform]) {
-          stats.platform_distribution[record.platform] = 0;
-        }
-        stats.platform_distribution[record.platform]++;
-
-        stats.records.push({
-          platform: record.platform,
-          date: record.created_at,
-          recommendation_count: record.resultDetail?.recommendation_count || 0,
-          exposure_rate: record.resultDetail?.exposure_rate || 0,
-          recommendation_rate: record.resultDetail?.recommendation_rate || 0
-        });
-      });
-    });
-
-    // 计算平均值
-    Object.values(keywordStats).forEach(stats => {
-      if (stats.total_mentions > 0) {
-        stats.avg_exposure_rate = (stats.avg_exposure_rate / stats.total_mentions).toFixed(2);
-        stats.avg_recommendation_rate = (stats.avg_recommendation_rate / stats.total_mentions).toFixed(2);
-      }
-    });
-
     res.json({
       success: true,
-      data: Object.values(keywordStats)
+      data: StatisticsService.buildKeywordStats(records)
     });
 
   } catch (error) {
     console.error('获取品牌关键词统计失败:', error);
     res.status(500).json({
       success: false,
-      message: '获取品牌关键词统计失败',
-      error: error.message
+      message: '获取品牌关键词统计失败'
     });
   }
 });
@@ -231,6 +204,7 @@ router.get('/keywords/:userId', authRequired, async (req, res) => {
 router.get('/platform-comparison/:userId', authRequired, async (req, res) => {
   try {
     const { userId } = req.params;
+    if (!ensureUserScopedAccess(req, res, userId)) return;
     const { startDate, endDate } = req.query;
 
     const whereClause = { user_id: userId };
@@ -241,7 +215,7 @@ router.get('/platform-comparison/:userId', authRequired, async (req, res) => {
     }
 
     const platformComparison = await QuestionRecord.findAll({
-      where: whereClause,
+      where: withMainlandPlatformScope(whereClause),
       attributes: [
         'platform',
         [sequelize.fn('COUNT', sequelize.col('question_records.id')), 'total_records']
@@ -259,8 +233,7 @@ router.get('/platform-comparison/:userId', authRequired, async (req, res) => {
     console.error('获取平台对比统计失败:', error);
     res.status(500).json({
       success: false,
-      message: '获取平台对比统计失败',
-      error: error.message
+      message: '获取平台对比统计失败'
     });
   }
 });
@@ -269,18 +242,16 @@ router.get('/platform-comparison/:userId', authRequired, async (req, res) => {
 router.get('/trends/:userId', authRequired, async (req, res) => {
   try {
     const { userId } = req.params;
-    const { days = 30 } = req.query;
-
-    const startDate = new Date();
-    startDate.setDate(startDate.getDate() - parseInt(days));
+    if (!ensureUserScopedAccess(req, res, userId)) return;
+    const { periodStart, periodEnd } = ProjectMetricsService.buildPeriodWindow(req.query.days);
 
     const trendData = await QuestionRecord.findAll({
-      where: {
+      where: withMainlandPlatformScope({
         user_id: userId,
         created_at: {
-          [Op.gte]: startDate
+          [Op.between]: [periodStart, periodEnd]
         }
-      },
+      }),
       attributes: [
         [sequelize.fn('DATE', sequelize.col('question_records.created_at')), 'date'],
         [sequelize.fn('COUNT', sequelize.col('question_records.id')), 'total_detections']
@@ -299,8 +270,7 @@ router.get('/trends/:userId', authRequired, async (req, res) => {
     console.error('获取趋势分析数据失败:', error);
     res.status(500).json({
       success: false,
-      message: '获取趋势分析数据失败',
-      error: error.message
+      message: '获取趋势分析数据失败'
     });
   }
 });

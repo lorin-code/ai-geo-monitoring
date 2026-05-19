@@ -52,7 +52,7 @@ router.get('/', adminRequired, async (req, res) => {
     if (!('seo_robots' in map)) map.seo_robots = 'index,follow';
     res.json({ success: true, data: map });
   } catch (error) {
-    res.status(500).json({ success: false, message: '获取设置失败', error: error.message });
+    res.status(500).json({ success: false, message: '获取设置失败' });
   }
 });
 
@@ -78,7 +78,7 @@ router.put('/', adminRequired, async (req, res) => {
     }
     res.json({ success: true, message: '设置已更新' });
   } catch (error) {
-    res.status(500).json({ success: false, message: '更新设置失败', error: error.message });
+    res.status(500).json({ success: false, message: '更新设置失败' });
   }
 });
 
@@ -97,7 +97,7 @@ router.get('/seo', async (req, res) => {
     if (!('seo_robots' in map)) map.seo_robots = 'index,follow';
     res.json({ success: true, data: map });
   } catch (error) {
-    res.status(500).json({ success: false, message: '获取SEO设置失败', error: error.message });
+    res.status(500).json({ success: false, message: '获取SEO设置失败' });
   }
 });
 
@@ -113,7 +113,7 @@ router.get('/notice', async (req, res) => {
       }
     });
   } catch (error) {
-    res.status(500).json({ success: false, message: '获取系统通知失败', error: error.message });
+    res.status(500).json({ success: false, message: '获取系统通知失败' });
   }
 });
 

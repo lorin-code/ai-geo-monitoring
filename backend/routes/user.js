@@ -7,6 +7,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { adminRequired, authRequired } = require('../middleware/auth');
 const CaptchaService = require('../services/CaptchaService');
+const AccessControlService = require('../services/AccessControlService');
 
 // 登录速率限制
 const loginLimiter = rateLimit({
@@ -77,8 +78,7 @@ router.post('/register', async (req, res) => {
     console.error('用户注册失败:', error);
     res.status(500).json({
       success: false,
-      message: '用户注册失败',
-      error: error.message
+      message: '用户注册失败'
     });
   }
 });
@@ -159,8 +159,7 @@ router.post('/login', loginLimiter, async (req, res) => {
     console.error('用户登录失败:', error);
     res.status(500).json({
       success: false,
-      message: '用户登录失败',
-      error: error.message
+      message: '用户登录失败'
     });
   }
 });
@@ -169,6 +168,9 @@ router.post('/login', loginLimiter, async (req, res) => {
 router.get('/profile/:userId', authRequired, async (req, res) => {
   try {
     const { userId } = req.params;
+    if (!AccessControlService.canAccessUser(req.user, userId)) {
+      return res.status(403).json({ success: false, message: '无权访问' });
+    }
 
     const user = await User.findByPk(userId, {
       attributes: ['id', 'username', 'email', 'role', 'status', 'created_at', 'last_login']
@@ -190,8 +192,7 @@ router.get('/profile/:userId', authRequired, async (req, res) => {
     console.error('获取用户信息失败:', error);
     res.status(500).json({
       success: false,
-      message: '获取用户信息失败',
-      error: error.message
+      message: '获取用户信息失败'
     });
   }
 });
@@ -200,6 +201,9 @@ router.get('/profile/:userId', authRequired, async (req, res) => {
 router.get('/quota/:userId', authRequired, async (req, res) => {
   try {
     const { userId } = req.params;
+    if (!AccessControlService.canAccessUser(req.user, userId)) {
+      return res.status(403).json({ success: false, message: '无权访问' });
+    }
 
     const user = await User.findByPk(userId, {
       attributes: ['id', 'username', 'email', 'role', 'status', 'membership_level', 'membership_expires_at']
@@ -243,7 +247,7 @@ router.get('/quota/:userId', authRequired, async (req, res) => {
     res.json({ success: true, data: { user_id: user.id, membership_level: level, membership_expires_at: user.membership_expires_at, quota_summary } });
   } catch (error) {
     console.error('获取用户配额失败:', error);
-    res.status(500).json({ success: false, message: '获取用户配额失败', error: error.message });
+    res.status(500).json({ success: false, message: '获取用户配额失败' });
   }
 });
 
@@ -295,8 +299,7 @@ router.put('/profile/:userId', authRequired, async (req, res) => {
     console.error('更新用户信息失败:', error);
     res.status(500).json({
       success: false,
-      message: '更新用户信息失败',
-      error: error.message
+      message: '更新用户信息失败'
     });
   }
 });
@@ -363,7 +366,7 @@ router.get('/', adminRequired, async (req, res) => {
 
     res.json({ success: true, data: { users: result, total: count } });
   } catch (error) {
-    res.status(500).json({ success: false, message: '获取用户列表失败', error: error.message });
+    res.status(500).json({ success: false, message: '获取用户列表失败' });
   }
 });
 
@@ -405,7 +408,7 @@ router.post('/', adminRequired, async (req, res) => {
     const user = await User.create({ username, email, password: hash, role, membership_level: level, membership_expires_at, status: 'active' });
     res.json({ success: true, message: '用户创建成功', data: { id: user.id } });
   } catch (error) {
-    res.status(500).json({ success: false, message: '创建用户失败', error: error.message });
+    res.status(500).json({ success: false, message: '创建用户失败' });
   }
 });
 
@@ -439,7 +442,7 @@ router.put('/:id', adminRequired, async (req, res) => {
     await user.update(payload);
     res.json({ success: true, message: '用户更新成功' });
   } catch (error) {
-    res.status(500).json({ success: false, message: '更新用户失败', error: error.message });
+    res.status(500).json({ success: false, message: '更新用户失败' });
   }
 });
 
@@ -452,7 +455,7 @@ router.delete('/:id', adminRequired, async (req, res) => {
     await user.destroy();
     res.json({ success: true, message: '用户已删除' });
   } catch (error) {
-    res.status(500).json({ success: false, message: '删除用户失败', error: error.message });
+    res.status(500).json({ success: false, message: '删除用户失败' });
   }
 });
 
@@ -470,7 +473,7 @@ router.put('/:id/password', adminRequired, async (req, res) => {
     await user.update({ password: hash });
     res.json({ success: true, message: '密码已重置' });
   } catch (error) {
-    res.status(500).json({ success: false, message: '重置密码失败', error: error.message });
+    res.status(500).json({ success: false, message: '重置密码失败' });
   }
 });
 

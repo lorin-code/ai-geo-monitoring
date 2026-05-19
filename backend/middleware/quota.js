@@ -91,11 +91,15 @@ function checkQuota(feature) {
 
 module.exports = { checkQuota };
 
+function resolveQuotaUserId(req, opts = {}) {
+  return opts.userId || (req.user && req.user.id) || req.userId;
+}
+
 // 批量消耗配额（在路由内部按需调用），例如一次请求创建多个任务
 // 返回 true 表示已成功扣减；若失败会直接写入响应并返回 false
 async function bulkConsumeQuota(req, res, feature, amount, opts = {}) {
   try {
-    const userId = (req.user && req.user.id) || req.userId;
+    const userId = resolveQuotaUserId(req, opts);
     if (!userId) {
       if (opts.sse) {
         // SSE 错误返回
@@ -195,6 +199,7 @@ async function bulkConsumeQuota(req, res, feature, amount, opts = {}) {
 }
 
 module.exports.bulkConsumeQuota = bulkConsumeQuota;
+module.exports.resolveQuotaUserId = resolveQuotaUserId;
 
 // 非路由场景下的直接配额消耗（供定时任务使用）
 // 返回 { ok: boolean, used: number, limit: number, reason?: string }

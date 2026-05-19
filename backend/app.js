@@ -77,6 +77,7 @@ const membershipRoutes = require('./routes/membership');
 const settingsRoutes = require('./routes/settings');
 const captchaRoutes = require('./routes/captcha');
 const scheduleRoutes = require('./routes/schedules');
+const geoProjectRoutes = require('./routes/geoProjects');
 const SchedulerService = require('./services/SchedulerService');
 const { authRequired } = require('./middleware/auth');
 
@@ -91,6 +92,7 @@ app.use('/api/platforms', authRequired, platformsRoutes);
 app.use('/api/membership', authRequired, membershipRoutes);
 // 定时任务接口（需要登录）
 app.use('/api/schedules', scheduleLimiter, authRequired, scheduleRoutes);
+app.use('/api/geo-projects', authRequired, geoProjectRoutes);
 // 设置路由：内部已对管理接口使用 adminRequired；公开接口（如 /seo、/notice）无需统一鉴权
 app.use('/api/settings', settingsRoutes);
 
@@ -126,6 +128,77 @@ app.use((req, res) => {
 const PORT = process.env.PORT || 3000;
 
 // 数据库同步并启动服务器
+async function ensureExistingTableProjectColumns() {
+  const qi = sequelize.getQueryInterface();
+  try {
+    const desc = await qi.describeTable('question_records');
+    if (!desc.project_id) {
+      await qi.addColumn('question_records', 'project_id', { type: DataTypes.INTEGER, allowNull: true });
+      console.log('已添加 question_records.project_id 列');
+    }
+    if (!desc.tracked_prompt_id) {
+      await qi.addColumn('question_records', 'tracked_prompt_id', { type: DataTypes.INTEGER, allowNull: true });
+      console.log('已添加 question_records.tracked_prompt_id 列');
+    }
+  } catch (e) {
+    if (!/no such table/i.test(String(e?.message || e))) {
+      console.warn('预检查 question_records 项目列失败:', e.message);
+    }
+  }
+
+  try {
+    const desc = await qi.describeTable('detection_schedules');
+    if (!desc.project_id) {
+      await qi.addColumn('detection_schedules', 'project_id', { type: DataTypes.INTEGER, allowNull: true });
+      console.log('已添加 detection_schedules.project_id 列');
+    }
+    if (!desc.tracked_prompt_id) {
+      await qi.addColumn('detection_schedules', 'tracked_prompt_id', { type: DataTypes.INTEGER, allowNull: true });
+      console.log('已添加 detection_schedules.tracked_prompt_id 列');
+    }
+  } catch (e) {
+    if (!/no such table/i.test(String(e?.message || e))) {
+      console.warn('预检查 detection_schedules 项目列失败:', e.message);
+    }
+  }
+}
+
+async function ensureColumn(tableName, columnName, definition) {
+  const qi = sequelize.getQueryInterface();
+  try {
+    const desc = await qi.describeTable(tableName);
+    if (!desc[columnName]) {
+      await qi.addColumn(tableName, columnName, definition);
+      console.log(`已添加 ${tableName}.${columnName} 列`);
+    }
+  } catch (e) {
+    if (!/no such table/i.test(String(e?.message || e))) {
+      console.warn(`检查/添加 ${tableName}.${columnName} 列失败:`, e.message);
+    }
+  }
+}
+
+async function ensureGeoMonitoringColumns() {
+  await ensureColumn('brand_projects', 'monitoring_enabled', { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false });
+  await ensureColumn('brand_projects', 'monitoring_time', { type: DataTypes.STRING(5), allowNull: false, defaultValue: '09:00' });
+  await ensureColumn('brand_projects', 'monitoring_last_run_at', { type: DataTypes.DATE, allowNull: true });
+  await ensureColumn('brand_projects', 'monitoring_next_run_at', { type: DataTypes.DATE, allowNull: true });
+
+  await ensureColumn('visibility_metrics', 'brand_rank', { type: DataTypes.INTEGER, allowNull: true });
+  await ensureColumn('visibility_metrics', 'brand_recommended', { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false });
+  await ensureColumn('visibility_metrics', 'visibility_score', { type: DataTypes.FLOAT, allowNull: false, defaultValue: 0 });
+  await ensureColumn('visibility_metrics', 'citation_count', { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 });
+  await ensureColumn('visibility_metrics', 'owned_citation_count', { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 });
+  await ensureColumn('visibility_metrics', 'competitor_citation_count', { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 });
+  await ensureColumn('visibility_metrics', 'citation_sources', { type: DataTypes.JSON, allowNull: false, defaultValue: [] });
+  await ensureColumn('visibility_metrics', 'prompt_category', { type: DataTypes.STRING(80), allowNull: true });
+  await ensureColumn('visibility_metrics', 'sentiment_reason', { type: DataTypes.STRING(80), allowNull: true });
+  await ensureColumn('visibility_metrics', 'sentiment_risk_terms', { type: DataTypes.JSON, allowNull: false, defaultValue: [] });
+
+  await ensureColumn('alert_rules', 'last_trigger_value', { type: DataTypes.FLOAT, allowNull: true });
+  await ensureColumn('alert_rules', 'last_trigger_message', { type: DataTypes.TEXT, allowNull: true });
+}
+
 // 确保存在演示用户（不占用 id=1），并修复明文密码
 async function ensureDefaultUser() {
   try {
@@ -254,8 +327,20 @@ async function ensureDefaultSettings() {
 
 (async () => {
   try {
+    await ensureExistingTableProjectColumns();
     await sequelize.sync();
+    await ensureGeoMonitoringColumns();
     // 确保 users 表存在会员到期列
+    try {
+      const qi = sequelize.getQueryInterface();
+      const brandProjectDesc = await qi.describeTable('brand_projects');
+      if (!brandProjectDesc.platforms) {
+        await qi.addColumn('brand_projects', 'platforms', { type: DataTypes.JSON, allowNull: true });
+        console.log('已添加 brand_projects.platforms 列');
+      }
+    } catch (e) {
+      console.warn('检查/添加 brand_projects.platforms 列失败:', e.message);
+    }
     try {
       const qi = sequelize.getQueryInterface();
       const desc = await qi.describeTable('users');
@@ -265,6 +350,34 @@ async function ensureDefaultSettings() {
       }
     } catch (e) {
       console.warn('检查/添加 users.membership_expires_at 列失败:', e.message);
+    }
+    try {
+      const qi = sequelize.getQueryInterface();
+      const desc = await qi.describeTable('question_records');
+      if (!desc.project_id) {
+        await qi.addColumn('question_records', 'project_id', { type: DataTypes.INTEGER, allowNull: true });
+        console.log('已添加 question_records.project_id 列');
+      }
+      if (!desc.tracked_prompt_id) {
+        await qi.addColumn('question_records', 'tracked_prompt_id', { type: DataTypes.INTEGER, allowNull: true });
+        console.log('已添加 question_records.tracked_prompt_id 列');
+      }
+    } catch (e) {
+      console.warn('检查/添加 question_records 项目列失败:', e.message);
+    }
+    try {
+      const qi = sequelize.getQueryInterface();
+      const desc = await qi.describeTable('detection_schedules');
+      if (!desc.project_id) {
+        await qi.addColumn('detection_schedules', 'project_id', { type: DataTypes.INTEGER, allowNull: true });
+        console.log('已添加 detection_schedules.project_id 列');
+      }
+      if (!desc.tracked_prompt_id) {
+        await qi.addColumn('detection_schedules', 'tracked_prompt_id', { type: DataTypes.INTEGER, allowNull: true });
+        console.log('已添加 detection_schedules.tracked_prompt_id 列');
+      }
+    } catch (e) {
+      console.warn('检查/添加 detection_schedules 项目列失败:', e.message);
     }
     console.log('数据库连接成功');
     // 先确保管理员 id=1

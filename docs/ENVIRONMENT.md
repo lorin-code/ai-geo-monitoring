@@ -47,7 +47,8 @@ cp nextjs-frontend/.env.example nextjs-frontend/.env.local
 
 ## 数据库
 - `DB_STORAGE` SQLite 数据库文件路径（默认：`database.sqlite`）
-- **当前数据库配置为 SQLite**，已在 `.gitignore` 忽略
+- `DATABASE_URL` Postgres 连接串；生产环境配置后会优先使用 Supabase/Postgres
+- 未配置 `DATABASE_URL` 时，后端继续使用 SQLite（默认 `database.sqlite`），已在 `.gitignore` 忽略
 
 ## SEO 设置（可选）
 - `SEO_TITLE` 网站 SEO 标题

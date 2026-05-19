@@ -2,9 +2,18 @@ import type { NextConfig } from "next";
 import path from "node:path";
 
 const nextConfig: NextConfig = {
-  outputFileTracingRoot: path.join(__dirname, "../"),
+  turbopack: {
+    root: path.join(__dirname),
+  },
   async rewrites() {
-    const API_BASE_URL = process.env.API_BASE_URL || 'http://localhost:3002';
+    const API_BASE_URL =
+      process.env.API_BASE_URL ||
+      (process.env.NODE_ENV === 'production' ? undefined : 'http://localhost:3002');
+
+    if (!API_BASE_URL) {
+      return [];
+    }
+
     return [
       {
         source: '/api/:path*',

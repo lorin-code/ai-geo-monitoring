@@ -5,7 +5,7 @@
   "scripts": {
     "start": "node app.js",
     "dev": "nodemon app.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node --test tests/*.test.js"
   },
   "keywords": [],
   "author": "",
@@ -23,6 +23,8 @@
     "https-proxy-agent": "^7.0.2",
     "jsonwebtoken": "^9.0.2",
     "mysql2": "^3.15.3",
+    "pg": "^8.21.0",
+    "pg-hstore": "^2.3.4",
     "sequelize": "^6.37.7",
     "sqlite3": "^5.1.7",
     "svg-captcha": "^1.4.0"

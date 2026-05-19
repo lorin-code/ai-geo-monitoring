@@ -3,13 +3,27 @@ const router = express.Router();
 const axios = require('axios');
 const https = require('https');
 let HttpsProxyAgent;
-try { HttpsProxyAgent = require('https-proxy-agent'); } catch (_) { }
-const { QuestionRecord, ResultDetail, User, sequelize } = require('../models');
-const { checkQuota, bulkConsumeQuota } = require('../middleware/quota');
+try {
+  const proxyAgentModule = require('https-proxy-agent');
+  HttpsProxyAgent = proxyAgentModule.HttpsProxyAgent || proxyAgentModule;
+} catch (_) { }
+const {
+  QuestionRecord,
+  ResultDetail,
+  User,
+  sequelize,
+  VisibilityMetric
+} = require('../models');
+const { bulkConsumeQuota } = require('../middleware/quota');
 const { authRequired, adminRequired } = require('../middleware/auth');
 const { Op } = require('sequelize');
 const AIPlatformService = require('../services/AIPlatformService');
 const ResultParserService = require('../services/ResultParserService');
+const ProjectRecordFinalizationService = require('../services/ProjectRecordFinalizationService');
+const ScheduleProjectContextService = require('../services/ScheduleProjectContextService');
+
+const MAINLAND_MONITORING_PLATFORMS = ['doubao', 'deepseek'];
+const SAFE_PLATFORM_FAILURE_MESSAGE = '监测平台调用失败，请稍后重试';
 
 // 获取所有已使用的品牌列表（用于筛选）
 router.get('/brands', authRequired, async (req, res) => {
@@ -33,23 +47,58 @@ router.get('/brands', authRequired, async (req, res) => {
     res.json({ success: true, data: list });
   } catch (error) {
     console.error('获取品牌列表失败:', error);
-    res.status(500).json({ success: false, message: '获取品牌列表失败', error: error.message });
+    res.status(500).json({ success: false, message: '获取品牌列表失败' });
   }
 });
 
-// 统计关键词出现次数（英文关键词使用词边界）
-function countKeywordOccurrences(text, keywords, englishWordBoundary = true) {
-  const s = typeof text === 'string' ? text : String(text || '');
-  const list = Array.isArray(keywords) ? keywords.filter(Boolean) : [];
-  const escape = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  return list.map((kw) => {
-    const e = escape(String(kw));
-    const useBoundary = englishWordBoundary && /^[A-Za-z]+$/.test(String(kw));
-    const re = new RegExp(useBoundary ? `\\b${e}\\b` : e, 'gi');
-    let c = 0;
-    for (const _ of s.matchAll(re)) c += 1;
-    return { keyword: String(kw), count: c };
-  }).filter(item => item.count > 0);
+async function resolveProjectContext(req, source) {
+  return ScheduleProjectContextService.resolveProjectContext({
+    user: req.user,
+    source,
+    messages: {
+      promptRequiresProject: '使用 Prompt 检测时必须提供 project_id',
+      archivedProject: '归档项目不能运行检测',
+      disabledPrompt: '停用 Prompt 不能运行检测'
+    }
+  });
+}
+
+async function saveCompletedDetectionResult({
+  user_id,
+  platform,
+  question,
+  brand,
+  brandKeywordsStr,
+  projectContext,
+  responseText,
+  aiResponse = null
+}) {
+  const record = await QuestionRecord.create({
+    user_id: projectContext?.user_id || user_id,
+    project_id: projectContext?.project_id || null,
+    tracked_prompt_id: projectContext?.tracked_prompt_id || null,
+    platform,
+    question,
+    brand: brand ? String(brand).trim() : null,
+    brand_keywords: brandKeywordsStr || ''
+  });
+
+  await ResultDetail.create({
+    question_record_id: record.id,
+    ai_response_original: responseText,
+    parsing_status: 'completed'
+  });
+
+  const keywordsArr = typeof brandKeywordsStr === 'string'
+    ? brandKeywordsStr.split(/[,，]/).map(s => s.trim()).filter(Boolean)
+    : [];
+  await ProjectRecordFinalizationService.finalize({
+    record,
+    responseText,
+    aiResponse,
+    keywords: keywordsArr
+  });
+  return record;
 }
 
 // 创建检测任务
@@ -65,8 +114,14 @@ router.post('/create', authRequired, async (req, res) => {
       });
     }
 
-    // 使用登录用户ID（已通过 authRequired 中间件验证）
-    user_id = req.user.id;
+    const projectContext = await resolveProjectContext(req, req.body);
+    if (projectContext.error) {
+      return res.status(projectContext.error.status).json({
+        success: false,
+        message: projectContext.error.message
+      });
+    }
+    user_id = projectContext.user_id;
 
     // 规范化与校验平台列表：仅保留合法且已配置可用的平台
     // 兼容 string / array，并统一为小写、去重
@@ -77,18 +132,26 @@ router.post('/create', authRequired, async (req, res) => {
     // 仅当数组非空或字符串非空时视为显式选择
     hasExplicitSelection = (Array.isArray(platforms) && platforms.length > 0);
     if (hasExplicitSelection) {
-      const validKeys = Object.keys(AIPlatformService.platforms || {});
+      const platformResult = ScheduleProjectContextService.validatePlatformsWithinContext(
+        platforms,
+        projectContext,
+        '检测平台必须包含在项目或 Prompt 的监测平台内'
+      );
+      if (!platformResult.ok) {
+        return res.status(400).json({
+          success: false,
+          message: platformResult.message || '品牌检测仅支持豆包和 DeepSeek'
+        });
+      }
       const available = new Set(AIPlatformService.getAvailablePlatforms());
-      platforms = Array.from(new Set(platforms.map(p => String(p).toLowerCase())))
-        .filter(p => validKeys.includes(p))
-        .filter(p => available.has(p));
+      platforms = platformResult.platforms.filter(p => available.has(p));
     }
 
     // 若用户显式选择，但筛选后为空，直接报错，避免误用其他平台
     if (hasExplicitSelection && platforms.length === 0) {
       return res.status(400).json({
         success: false,
-        message: '所选平台不可用或未配置 API Key'
+        message: '当前没有可用的监测平台，请联系管理员处理'
       });
     }
 
@@ -98,10 +161,19 @@ router.post('/create', authRequired, async (req, res) => {
       if (!Array.isArray(availableList) || availableList.length === 0) {
         return res.status(400).json({
           success: false,
-          message: '当前没有可用的AI平台'
+          message: '当前没有可用的监测平台，请联系管理员处理'
         });
       }
-      platforms = availableList;
+      platforms = ScheduleProjectContextService.defaultPlatformsForContext(
+        availableList.filter(p => MAINLAND_MONITORING_PLATFORMS.includes(p)),
+        projectContext
+      );
+      if (platforms.length === 0) {
+        return res.status(400).json({
+          success: false,
+          message: projectContext.project_id ? '当前项目或 Prompt 没有可用的监测平台' : '当前没有可用的监测平台，请联系管理员处理'
+        });
+      }
     }
 
     // 归一化关键词（可从 brand_keywords 或 highlightKeywords 接收）
@@ -117,7 +189,7 @@ router.post('/create', authRequired, async (req, res) => {
     }
 
     // 按平台数量进行配额扣减（一次请求可能创建多个任务）
-    const ok = await bulkConsumeQuota(req, res, 'detection', Array.isArray(platforms) ? platforms.length : 0);
+    const ok = await bulkConsumeQuota(req, res, 'detection', Array.isArray(platforms) ? platforms.length : 0, { userId: user_id });
     if (!ok) return; // bulkConsumeQuota 已写入响应
 
     const results = [];
@@ -126,6 +198,8 @@ router.post('/create', authRequired, async (req, res) => {
       // 创建问题记录
       const questionRecord = await QuestionRecord.create({
         user_id,
+        project_id: projectContext.project_id,
+        tracked_prompt_id: projectContext.tracked_prompt_id,
         platform,
         question,
         brand: brand ? String(brand).trim() : null,
@@ -156,8 +230,7 @@ router.post('/create', authRequired, async (req, res) => {
     console.error('创建检测任务失败:', error);
     res.status(500).json({
       success: false,
-      message: '创建检测任务失败',
-      error: error.message
+      message: '创建检测任务失败'
     });
   }
 });
@@ -172,7 +245,7 @@ async function processAIQuery(recordId, platform, question) {
       await QuestionRecord.update(
         {
           status: 'failed',
-          error_message: aiResult.error
+          error_message: SAFE_PLATFORM_FAILURE_MESSAGE
         },
         { where: { id: recordId } }
       );
@@ -181,6 +254,16 @@ async function processAIQuery(recordId, platform, question) {
 
     // 仅保存原始回答文本
     const originalText = ResultParserService.extractResponseText(aiResult.data);
+    if (!String(originalText || '').trim()) {
+      await QuestionRecord.update(
+        {
+          status: 'failed',
+          error_message: '监测平台返回内容为空'
+        },
+        { where: { id: recordId } }
+      );
+      return;
+    }
     await ResultDetail.create({
       question_record_id: recordId,
       ai_response_original: originalText,
@@ -192,23 +275,19 @@ async function processAIQuery(recordId, platform, question) {
     const brandKeywordsArr = typeof rec?.brand_keywords === 'string'
       ? rec.brand_keywords.split(/[,，]/).map(s => s.trim()).filter(Boolean)
       : Array.isArray(rec?.brand_keywords) ? rec.brand_keywords : [];
-    const keywordCounts = countKeywordOccurrences(originalText, brandKeywordsArr, true);
-
-    // 更新问题记录状态与摘要
-    await QuestionRecord.update(
-      {
-        status: 'completed',
-        result_summary: { keyword_counts: keywordCounts }
-      },
-      { where: { id: recordId } }
-    );
+    await ProjectRecordFinalizationService.finalize({
+      record: rec,
+      responseText: originalText,
+      aiResponse: aiResult.data,
+      keywords: brandKeywordsArr
+    });
 
   } catch (error) {
     console.error(`处理AI查询失败 (recordId: ${recordId}):`, error);
     await QuestionRecord.update(
       {
         status: 'failed',
-        error_message: error.message
+        error_message: SAFE_PLATFORM_FAILURE_MESSAGE
       },
       { where: { id: recordId } }
     );
@@ -262,8 +341,7 @@ router.get('/status/:recordId', authRequired, async (req, res) => {
     console.error('获取任务状态失败:', error);
     res.status(500).json({
       success: false,
-      message: '获取任务状态失败',
-      error: error.message
+      message: '获取任务状态失败'
     });
   }
 });
@@ -305,7 +383,7 @@ router.get('/history', adminRequired, async (req, res) => {
     });
   } catch (error) {
     console.error('获取管理员历史失败:', error);
-    res.status(500).json({ success: false, message: '获取管理员历史失败', error: error.message });
+    res.status(500).json({ success: false, message: '获取管理员历史失败' });
   }
 });
 
@@ -358,8 +436,7 @@ router.get('/history/:userId', authRequired, async (req, res) => {
     console.error('获取检测历史失败:', error);
     res.status(500).json({
       success: false,
-      message: '获取检测历史失败',
-      error: error.message
+      message: '获取检测历史失败'
     });
   }
 });
@@ -378,12 +455,13 @@ router.delete('/record/:id', authRequired, async (req, res) => {
     if (req.user.role !== 'admin' && rec.user_id !== req.user.id) {
       return res.status(403).json({ success: false, message: '无权删除' });
     }
+    await VisibilityMetric.destroy({ where: { question_record_id: id } });
     await ResultDetail.destroy({ where: { question_record_id: id } });
     await QuestionRecord.destroy({ where: { id } });
     res.json({ success: true, message: '记录已删除' });
   } catch (error) {
     console.error('删除记录失败:', error);
-    res.status(500).json({ success: false, message: '删除记录失败', error: error.message });
+    res.status(500).json({ success: false, message: '删除记录失败' });
   }
 });
 
@@ -411,12 +489,13 @@ router.delete('/history/:userId', authRequired, async (req, res) => {
     if (ids.length === 0) {
       return res.json({ success: true, message: '无匹配记录', data: { deleted: 0 } });
     }
+    await VisibilityMetric.destroy({ where: { question_record_id: { [Op.in]: ids } } });
     await ResultDetail.destroy({ where: { question_record_id: { [Op.in]: ids } } });
     const del = await QuestionRecord.destroy({ where: { id: { [Op.in]: ids } } });
     res.json({ success: true, message: '批量删除完成', data: { deleted: del } });
   } catch (error) {
     console.error('批量删除失败:', error);
-    res.status(500).json({ success: false, message: '批量删除失败', error: error.message });
+    res.status(500).json({ success: false, message: '批量删除失败' });
   }
 });
 
@@ -450,18 +529,29 @@ router.get('/stream', authRequired, async (req, res) => {
       return res.end();
     }
 
+    const projectContext = await resolveProjectContext(req, req.query);
+    if (projectContext.error) {
+      res.write(`data: ${JSON.stringify({ event: 'error', message: projectContext.error.message })}\n\n`);
+      return res.end();
+    }
+
+    if (!MAINLAND_MONITORING_PLATFORMS.includes(String(platform).toLowerCase())) {
+      res.write(`data: ${JSON.stringify({ event: 'error', message: '品牌检测仅支持豆包和 DeepSeek' })}\n\n`);
+      return res.end();
+    }
+
     const cfg = AIPlatformService.platforms[platform];
     if (!cfg) {
-      res.write(`data: ${JSON.stringify({ event: 'error', message: `不支持的AI平台: ${platform}` })}\n\n`);
+      res.write(`data: ${JSON.stringify({ event: 'error', message: '品牌检测仅支持豆包和 DeepSeek' })}\n\n`);
       return res.end();
     }
     if (!cfg.apiKey) {
-      res.write(`data: ${JSON.stringify({ event: 'error', message: `${cfg.name} API密钥未配置` })}\n\n`);
+      res.write(`data: ${JSON.stringify({ event: 'error', message: '当前没有可用的监测平台，请联系管理员处理' })}\n\n`);
       return res.end();
     }
 
     // 流式场景下进行配额扣减（一次）并以 SSE 错误事件反馈不足
-    const ok = await bulkConsumeQuota(req, res, 'detection', 1, { sse: true });
+    const ok = await bulkConsumeQuota(req, res, 'detection', 1, { sse: true, userId: projectContext.user_id });
     if (!ok) return; // 已写入 SSE 错误并结束
 
     // 针对不同平台的流式策略：
@@ -521,27 +611,15 @@ router.get('/stream', authRequired, async (req, res) => {
 
       streamReq.data.on('end', async () => {
         try {
-          // 持久化记录
-          const record = await QuestionRecord.create({
-            user_id: user_id,
+          await saveCompletedDetectionResult({
+            user_id,
             platform,
             question,
-            brand: brand ? String(brand).trim() : null,
-            brand_keywords: brandKeywordsStr || ''
+            brand,
+            brandKeywordsStr,
+            projectContext,
+            responseText: fullText
           });
-          await ResultDetail.create({
-            question_record_id: record.id,
-            ai_response_original: fullText,
-            parsing_status: 'completed'
-          });
-          const keywordsArr = typeof brandKeywordsStr === 'string'
-            ? brandKeywordsStr.split(/[,，]/).map(s => s.trim()).filter(Boolean)
-            : [];
-          const keywordCounts = countKeywordOccurrences(fullText, keywordsArr, true);
-          await QuestionRecord.update(
-            { status: 'completed', result_summary: { keyword_counts: keywordCounts } },
-            { where: { id: record.id } }
-          );
         } catch (err) {
           console.error('保存流式结果失败:', err.message);
         }
@@ -550,7 +628,8 @@ router.get('/stream', authRequired, async (req, res) => {
       });
 
       streamReq.data.on('error', (err) => {
-        res.write(`data: ${JSON.stringify({ event: 'error', message: err.message })}\n\n`);
+        console.error('DeepSeek 流式请求异常:', err?.message || err);
+        res.write(`data: ${JSON.stringify({ event: 'error', message: SAFE_PLATFORM_FAILURE_MESSAGE })}\n\n`);
         res.end();
       });
 
@@ -614,26 +693,15 @@ router.get('/stream', authRequired, async (req, res) => {
 
         streamReq.data.on('end', async () => {
           try {
-            const record = await QuestionRecord.create({
-              user_id: user_id,
+            await saveCompletedDetectionResult({
+              user_id,
               platform,
               question,
-              brand: brand ? String(brand).trim() : null,
-              brand_keywords: brandKeywordsStr || ''
+              brand,
+              brandKeywordsStr,
+              projectContext,
+              responseText: fullText
             });
-            await ResultDetail.create({
-              question_record_id: record.id,
-              ai_response_original: fullText,
-              parsing_status: 'completed'
-            });
-            const keywordsArr = typeof brandKeywordsStr === 'string'
-              ? brandKeywordsStr.split(/[,，]/).map(s => s.trim()).filter(Boolean)
-              : [];
-            const keywordCounts = countKeywordOccurrences(fullText, keywordsArr, true);
-            await QuestionRecord.update(
-              { status: 'completed', result_summary: { keyword_counts: keywordCounts } },
-              { where: { id: record.id } }
-            );
           } catch (err) {
             console.error('保存豆包流式结果失败:', err.message);
           }
@@ -642,11 +710,13 @@ router.get('/stream', authRequired, async (req, res) => {
         });
 
         streamReq.data.on('error', (err) => {
-          res.write(`data: ${JSON.stringify({ event: 'error', message: err.message })}\n\n`);
+          console.error('豆包流式请求异常:', err?.message || err);
+          res.write(`data: ${JSON.stringify({ event: 'error', message: SAFE_PLATFORM_FAILURE_MESSAGE })}\n\n`);
           res.end();
         });
       } catch (err) {
-        res.write(`data: ${JSON.stringify({ event: 'error', message: err.message })}\n\n`);
+        console.error('豆包流式接口调用失败:', err?.message || err);
+        res.write(`data: ${JSON.stringify({ event: 'error', message: SAFE_PLATFORM_FAILURE_MESSAGE })}\n\n`);
         res.end();
       }
     } else {
@@ -654,7 +724,8 @@ router.get('/stream', authRequired, async (req, res) => {
       try {
         const result = await AIPlatformService.queryPlatform(platform, question);
         if (!result.success) {
-          res.write(`data: ${JSON.stringify({ event: 'error', message: result.error })}\n\n`);
+          console.error('平台查询失败:', result.error || result.message || platform);
+          res.write(`data: ${JSON.stringify({ event: 'error', message: SAFE_PLATFORM_FAILURE_MESSAGE })}\n\n`);
           return res.end();
         }
         fullText = ResultParserService.extractResponseText(result.data);
@@ -684,30 +755,21 @@ router.get('/stream', authRequired, async (req, res) => {
           await new Promise(r => setTimeout(r, 45));
         }
         // 持久化记录
-        const record = await QuestionRecord.create({
-          user_id: user_id,
+        await saveCompletedDetectionResult({
+          user_id,
           platform,
           question,
-          brand: brand ? String(brand).trim() : null,
-          brand_keywords: brandKeywordsStr || ''
+          brand,
+          brandKeywordsStr,
+          projectContext,
+          responseText: fullText,
+          aiResponse: result.data
         });
-        await ResultDetail.create({
-          question_record_id: record.id,
-          ai_response_original: fullText,
-          parsing_status: 'completed'
-        });
-        const keywordsArr = typeof brandKeywordsStr === 'string'
-          ? brandKeywordsStr.split(/[,，]/).map(s => s.trim()).filter(Boolean)
-          : [];
-        const keywordCounts = countKeywordOccurrences(fullText, keywordsArr, true);
-        await QuestionRecord.update(
-          { status: 'completed', result_summary: { keyword_counts: keywordCounts } },
-          { where: { id: record.id } }
-        );
         res.write(`data: ${JSON.stringify({ event: 'done' })}\n\n`);
         res.end();
       } catch (err) {
-        res.write(`data: ${JSON.stringify({ event: 'error', message: err.message })}\n\n`);
+        console.error('模拟流式查询失败:', err?.message || err);
+        res.write(`data: ${JSON.stringify({ event: 'error', message: SAFE_PLATFORM_FAILURE_MESSAGE })}\n\n`);
         res.end();
       }
     }
@@ -715,7 +777,7 @@ router.get('/stream', authRequired, async (req, res) => {
   } catch (error) {
     console.error('SSE流式接口异常:', error);
     try {
-      res.write(`data: ${JSON.stringify({ event: 'error', message: error.message })}\n\n`);
+      res.write(`data: ${JSON.stringify({ event: 'error', message: SAFE_PLATFORM_FAILURE_MESSAGE })}\n\n`);
     } catch (_) { }
     res.end();
   }

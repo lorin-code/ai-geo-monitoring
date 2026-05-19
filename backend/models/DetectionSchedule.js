@@ -5,6 +5,8 @@ const sequelize = require('../config/database');
 const DetectionSchedule = sequelize.define('DetectionSchedule', {
   id: { type: DataTypes.INTEGER, autoIncrement: true, primaryKey: true },
   user_id: { type: DataTypes.INTEGER, allowNull: false },
+  project_id: { type: DataTypes.INTEGER, allowNull: true },
+  tracked_prompt_id: { type: DataTypes.INTEGER, allowNull: true },
   brand: { type: DataTypes.STRING, allowNull: true },
   question: { type: DataTypes.TEXT, allowNull: false },
   platforms: { type: DataTypes.JSON, allowNull: false, defaultValue: [] },
@@ -19,6 +21,8 @@ const DetectionSchedule = sequelize.define('DetectionSchedule', {
   underscored: true,
   indexes: [
     { fields: ['user_id'] },
+    { fields: ['project_id'] },
+    { fields: ['tracked_prompt_id'] },
     { fields: ['enabled'] },
     { fields: ['next_run_at'] },
   ]

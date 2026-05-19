@@ -1,8 +1,10 @@
 const axios = require('axios');
 const https = require('https');
+const MAINLAND_MONITORING_PLATFORMS = ['doubao', 'deepseek'];
 let HttpsProxyAgent;
 try {
-  HttpsProxyAgent = require('https-proxy-agent');
+  const proxyAgentModule = require('https-proxy-agent');
+  HttpsProxyAgent = proxyAgentModule.HttpsProxyAgent || proxyAgentModule;
 } catch (_) {
   // 代理模块可选，未安装则忽略
 }
@@ -81,6 +83,7 @@ class AIPlatformService {
     let lastError = null;
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
       try {
+        const startedAt = Date.now();
         // 构建可选代理 Agent（支持 HTTPS_PROXY / HTTP_PROXY / PROXY_URL）
         const proxyUrl = process.env.HTTPS_PROXY || process.env.HTTP_PROXY || process.env.PROXY_URL;
         let agent = new https.Agent({ keepAlive: true });
@@ -103,11 +106,15 @@ class AIPlatformService {
           decompress: true,
           httpsAgent: agent
         });
+        const headerResponseTime = Number(response.headers?.['x-response-time']);
+        const responseTime = Number.isFinite(headerResponseTime) && headerResponseTime >= 0
+          ? headerResponseTime
+          : Math.max(0, Date.now() - startedAt);
         return {
           success: true,
           data: response.data,
           platform,
-          responseTime: response.headers?.['x-response-time'] || Date.now()
+          responseTime
         };
       } catch (error) {
         lastError = error;
@@ -116,7 +123,7 @@ class AIPlatformService {
         const data = error.response?.data;
         const hint = code === 'ENOTFOUND' ? ' • DNS解析失败，请配置代理或检查网络连接' : '';
         const summary = `[${platform}] ${code} ${error.message}` + (status ? ` (status ${status})` : '') + hint;
-        console.error('平台调用失败:', summary, data ? `response: ${JSON.stringify(data)}` : '');
+        console.error('平台调用失败:', summary, data ? 'response: [redacted]' : '');
         const retryable = code === 'ECONNABORTED' || code === 'ENOTFOUND' || code === 'ECONNRESET' || status === 429 || (status && status >= 500);
         if (attempt < MAX_ATTEMPTS && retryable) {
           // 处理 429: 尊重 Retry-After，否则指数退避 + 随机抖动
@@ -135,14 +142,17 @@ class AIPlatformService {
 
   // 获取平台对应的模型名称
   getModelName(platform) {
-    const modelMap = {
+    const defaults = {
       // Ark 官方示例模型
-      doubao: process.env.DOUBAO_MODEL || 'doubao-1-5-pro-32k-250115',
+      doubao: 'doubao-1-5-pro-32k-250115',
       deepseek: 'deepseek-chat',
       kimi: 'kimi-chat',
       qianwen: 'qwen-turbo'
     };
-    return modelMap[platform] || 'default';
+    const key = String(platform || '').toUpperCase() + '_MODEL';
+    const configuredModel = process.env[key]?.trim();
+    if (configuredModel) return configuredModel;
+    return defaults[platform] || 'default';
   }
 
   // 获取最大输出 token 配置（优先平台专属，其次全局，默认 4096）
@@ -178,9 +188,7 @@ class AIPlatformService {
 
   // 获取可用的平台列表
   getAvailablePlatforms() {
-    return Object.keys(this.platforms).filter(platform => 
-      this.platforms[platform].apiKey
-    );
+    return MAINLAND_MONITORING_PLATFORMS.filter(platform => this.platforms[platform]?.apiKey);
   }
 }
 

@@ -25,7 +25,7 @@ router.get('/new', captchaLimiter, async (req, res) => {
     return res.json({ success: true, data: { id, question, expires_in: Math.floor(ttlMs / 1000) } });
   } catch (error) {
     console.error('生成验证码失败:', error);
-    return res.status(500).json({ success: false, message: '生成验证码失败', error: error.message });
+    return res.status(500).json({ success: false, message: '生成验证码失败' });
   }
 });
 
@@ -36,7 +36,7 @@ router.get('/image', captchaLimiter, async (req, res) => {
     return res.json({ success: true, data: { id, svg, expires_in: Math.floor(ttlMs / 1000) } });
   } catch (error) {
     console.error('生成图形验证码失败:', error);
-    return res.status(500).json({ success: false, message: '生成图形验证码失败', error: error.message });
+    return res.status(500).json({ success: false, message: '生成图形验证码失败' });
   }
 });
 
