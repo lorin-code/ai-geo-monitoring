@@ -1,4 +1,5 @@
 const { BrandProject, DetectionSchedule, QuestionRecord, ResultDetail, TrackedPrompt, User } = require('../models');
+const { Op } = require('sequelize');
 const AIPlatformService = require('./AIPlatformService');
 const ResultParserService = require('./ResultParserService');
 const ProjectRunService = require('./ProjectRunService');
@@ -224,6 +225,7 @@ class SchedulerService {
     if (this._started) return;
     this._started = true;
     await this.refresh();
+    await this.recoverStalePendingRecords();
     this._timer = setInterval(() => this.tick().catch(() => { }), 30 * 1000);
   }
 
@@ -288,10 +290,11 @@ class SchedulerService {
 
   async tick() {
     const now = new Date();
+    await this.recoverStalePendingRecords({ now });
     const due = await DetectionSchedule.findAll({
       where: {
         enabled: true,
-        next_run_at: { [require('sequelize').Op.lte]: now }
+        next_run_at: { [Op.lte]: now }
       }
     });
     for (const s of due) {
@@ -309,7 +312,7 @@ class SchedulerService {
       where: {
         status: 'active',
         monitoring_enabled: true,
-        monitoring_next_run_at: { [require('sequelize').Op.lte]: now }
+        monitoring_next_run_at: { [Op.lte]: now }
       }
     });
     for (const project of dueProjects) {
@@ -349,6 +352,28 @@ class SchedulerService {
       monitoring_next_run_at: computeNextRun(normalized.monitoring_time)
     });
     return true;
+  }
+
+  async recoverStalePendingRecords(options = {}) {
+    const maxAgeMs = Number(options.maxAgeMs || 0) > 0
+      ? Number(options.maxAgeMs)
+      : 15 * 60 * 1000;
+    const now = options.now ? new Date(options.now) : new Date();
+    const cutoff = new Date(now.getTime() - maxAgeMs);
+    const [count] = await QuestionRecord.update(
+      {
+        status: 'failed',
+        error_message: '分析任务中断，请重新运行'
+      },
+      {
+        where: {
+          status: 'pending',
+          created_at: { [Op.lt]: cutoff }
+        }
+      }
+    );
+    if (count > 0) console.warn(`已恢复 ${count} 条超时未完成分析记录`);
+    return count;
   }
 
   async runNow(scheduleId) {

@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const { BrandProject, DetectionSchedule, TrackedPrompt, User } = require('../models');
+const { BrandProject, DetectionSchedule, QuestionRecord, TrackedPrompt, User } = require('../models');
 const ProjectRunService = require('../services/ProjectRunService');
 const SchedulerService = require('../services/SchedulerService');
 
@@ -102,6 +102,33 @@ test('scheduled query exceptions mark created records as failed', () => {
 
   assert.match(source, /let rec = null/);
   assert.match(source, /catch \(e\)[\s\S]*QuestionRecord\.update\([\s\S]*SAFE_PLATFORM_FAILURE_MESSAGE/);
+});
+
+test('recovers stale pending project records as failed', async () => {
+  const originalUpdate = QuestionRecord.update;
+  const calls = [];
+  QuestionRecord.update = async (...args) => {
+    calls.push(args);
+    return [2];
+  };
+
+  try {
+    const recovered = await SchedulerService.recoverStalePendingRecords({
+      now: new Date('2026-05-19T13:30:00.000Z'),
+      maxAgeMs: 20 * 60 * 1000
+    });
+
+    assert.equal(recovered, 2);
+    assert.equal(calls.length, 1);
+    assert.deepEqual(calls[0][0], {
+      status: 'failed',
+      error_message: '分析任务中断，请重新运行'
+    });
+    assert.equal(calls[0][1].where.status, 'pending');
+    assert.ok(calls[0][1].where.created_at);
+  } finally {
+    QuestionRecord.update = originalUpdate;
+  }
 });
 
 test('manual scheduled runs only succeed when at least one platform completes', () => {
