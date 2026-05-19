@@ -398,6 +398,81 @@ test('marks a project run target failed when platform execution throws', async (
   }
 });
 
+test('creates run records for every project run target before execution', async () => {
+  const originalCreateRecord = QuestionRecord.create;
+  const createdPayloads = [];
+  QuestionRecord.create = async (payload) => {
+    createdPayloads.push(payload);
+    return { id: createdPayloads.length, ...payload };
+  };
+
+  try {
+    const entries = await ProjectRunService.createRunEntries({
+      targets: [
+        { prompt: { id: 1, question: '问题一' }, platform: 'doubao' },
+        { prompt: { id: 2, question: '问题二' }, platform: 'doubao' },
+        { prompt: { id: 3, question: '问题三' }, platform: 'doubao' }
+      ],
+      runUser: { id: 9 },
+      projectData: { id: 2, name: 'Goodie AI' },
+      keywords: ['Goodie AI']
+    });
+
+    assert.equal(entries.length, 3);
+    assert.deepEqual(entries.map((entry) => entry.record.id), [1, 2, 3]);
+    assert.deepEqual(createdPayloads.map((payload) => payload.tracked_prompt_id), [1, 2, 3]);
+    assert.deepEqual(createdPayloads.map((payload) => payload.status), ['pending', 'pending', 'pending']);
+  } finally {
+    QuestionRecord.create = originalCreateRecord;
+  }
+});
+
+test('runs a prepared project run target without creating a duplicate question record', async () => {
+  const originalCreateRecord = QuestionRecord.create;
+  const originalQueryPlatform = AIPlatformService.queryPlatform;
+  const updates = [];
+
+  QuestionRecord.create = async () => {
+    throw new Error('should reuse the prepared record');
+  };
+  AIPlatformService.queryPlatform = async () => ({
+    success: false,
+    error: '[doubao] timeout'
+  });
+
+  try {
+    const result = await ProjectRunService.runTarget({
+      target: {
+        prompt: { id: 8, question: '开源 GEO 工具有哪些' },
+        platform: 'doubao'
+      },
+      record: {
+        id: 88,
+        update: async (payload) => updates.push(payload)
+      },
+      runUser: { id: 9 },
+      projectData: { id: 2, name: 'Goodie AI' },
+      competitors: [],
+      keywords: ['Goodie AI']
+    });
+
+    assert.deepEqual(result, {
+      record_id: 88,
+      prompt_id: 8,
+      platform: 'doubao',
+      status: 'failed',
+      error: '监测平台调用失败，请稍后重试'
+    });
+    assert.deepEqual(updates[0], {
+      status: 'failed',
+      error_message: '监测平台调用失败，请稍后重试'
+    });
+  } finally {
+    QuestionRecord.create = originalCreateRecord;
+    AIPlatformService.queryPlatform = originalQueryPlatform;
+  }
+});
+
 test('marks a project run target failed with a safe message when platform returns failure', async () => {
   const originalCreateRecord = QuestionRecord.create;
   const originalQueryPlatform = AIPlatformService.queryPlatform;

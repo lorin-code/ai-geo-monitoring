@@ -228,19 +228,68 @@ class ProjectRunService {
     }
   }
 
-  async runTarget({ target, runUser, projectData, competitors, keywords }) {
+  async createTargetRecord({ target, runUser, projectData, keywords }) {
     const prompt = target.prompt;
-    let record = null;
+    return QuestionRecord.create({
+      user_id: runUser.id,
+      project_id: projectData.id,
+      tracked_prompt_id: prompt.id,
+      platform: target.platform,
+      question: prompt.question,
+      brand: projectData.name,
+      brand_keywords: keywords.join(','),
+      status: 'pending'
+    });
+  }
+
+  async createRunEntries({ targets, runUser, projectData, keywords }) {
+    const rows = [];
+    for (const target of targets) {
+      const record = await this.createTargetRecord({ target, runUser, projectData, keywords });
+      rows.push({ target, record });
+    }
+    return rows;
+  }
+
+  getProjectRunConcurrency() {
+    const configured = Number.parseInt(process.env.PROJECT_RUN_CONCURRENCY || '', 10);
+    if (Number.isInteger(configured) && configured > 0) return Math.min(configured, 5);
+    return 2;
+  }
+
+  async runPreparedTargets({ entries, runUser, projectData, competitors, keywords, concurrency = this.getProjectRunConcurrency() }) {
+    const rows = Array.isArray(entries) ? entries : [];
+    const results = new Array(rows.length);
+    let nextIndex = 0;
+    const workerCount = Math.max(1, Math.min(Number(concurrency) || 1, rows.length || 1));
+
+    const runNext = async () => {
+      while (nextIndex < rows.length) {
+        const currentIndex = nextIndex;
+        nextIndex += 1;
+        const entry = rows[currentIndex];
+        results[currentIndex] = await this.runTarget({
+          target: entry.target,
+          record: entry.record,
+          runUser,
+          projectData,
+          competitors,
+          keywords
+        });
+      }
+    };
+
+    await Promise.all(Array.from({ length: workerCount }, runNext));
+    return results;
+  }
+
+  async runTarget({ target, record: preparedRecord = null, runUser, projectData, competitors, keywords }) {
+    const prompt = target.prompt;
+    let record = preparedRecord;
     try {
-      record = await QuestionRecord.create({
-        user_id: runUser.id,
-        project_id: projectData.id,
-        tracked_prompt_id: prompt.id,
-        platform: target.platform,
-        question: prompt.question,
-        brand: projectData.name,
-        brand_keywords: keywords.join(',')
-      });
+      if (!record) {
+        record = await this.createTargetRecord({ target, runUser, projectData, keywords });
+      }
 
       const aiResult = await AIPlatformService.queryPlatform(target.platform, prompt.question);
       if (!aiResult.success) {
@@ -378,11 +427,8 @@ class ProjectRunService {
       order: [['id', 'ASC']]
     });
     const keywords = this.buildBrandKeywordList(projectData);
-    const results = [];
-
-    for (const target of targets) {
-      results.push(await this.runTarget({ target, runUser, projectData, competitors, keywords }));
-    }
+    const entries = await this.createRunEntries({ targets, runUser, projectData, keywords });
+    const results = await this.runPreparedTargets({ entries, runUser, projectData, competitors, keywords });
 
     await this.evaluateAlertsAfterRun(projectData, runUser);
     const summary = this.summarizeRunResults(results, targets.length);
