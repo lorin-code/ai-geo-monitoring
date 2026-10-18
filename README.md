@@ -2,6 +2,8 @@
 
 GoodieAI GEO Monitoring System 是一个面向 Generative Engine Optimization（GEO）的监测系统，用于观察品牌在 AI 搜索、AI 问答和大模型回答中的曝光、提及、推荐与引用来源表现。
 
+## 如需商业定制开发或合作请邮件联系 lorin.msg@gmail.com
+
 ## 更新说明
 
 ### 2026-10-18：DeepSeek 官方搜索接入
