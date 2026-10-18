@@ -75,12 +75,12 @@ class CitationAnalysisService {
   extractUrlsFromText(text) {
     const source = String(text || '');
     const matches = [];
-    const explicitPattern = /https?:\/\/[^\s）)\]}>】》」』，。；;、"'”’]+/gi;
+    const explicitPattern = /https?:\/\/[^\s）)\]}>】》」』，。；;、"'”’`]+/gi;
     for (const match of source.matchAll(explicitPattern)) {
       const value = this.stripTrailingPunctuation(match[0]);
       if (value) matches.push({ index: match.index, url: value });
     }
-    const bareUrlPattern = /(^|[\s:：（(【《\["'“‘])((?:www\.)?(?:[a-z0-9-]+\.)+[a-z]{2,}(?::\d+)?(?:\/[^\s）)\]}>】》」』，。；;、"'”’]*)?)/gi;
+    const bareUrlPattern = /(^|[\s:：（(【《\["'“‘`])((?:www\.)?(?:[a-z0-9-]+\.)+[a-z]{2,}(?::\d+)?(?:\/[^\s）)\]}>】》」』，。；;、"'”’`]*)?)/gi;
     for (const match of source.matchAll(bareUrlPattern)) {
       const value = this.stripTrailingPunctuation(match[2]);
       if (this.isLikelyBareUrl(value)) matches.push({ index: match.index + String(match[1] || '').length, url: `https://${value}` });
@@ -186,7 +186,7 @@ class CitationAnalysisService {
     const competitorDomains = (Array.isArray(competitors) ? competitors : [])
       .map((item) => this.normalizeDomain(item?.website))
       .filter(Boolean);
-    const seen = new Set();
+    const seen = new Map();
     const normalizedSources = rawSources
       .map((source) => {
         const url = String(source?.url || '').trim();
@@ -214,8 +214,13 @@ class CitationAnalysisService {
       .filter((source) => this.isValidDomain(source.domain))
       .filter((source) => {
         const key = source.url ? source.url.toLowerCase() : `domain:${source.domain.toLowerCase()}`;
-        if (seen.has(key)) return false;
-        seen.add(key);
+        const existing = seen.get(key);
+        if (existing) {
+          if (source.source_origin) existing.source_origin = source.source_origin;
+          if (source.title) existing.title = source.title;
+          return false;
+        }
+        seen.set(key, source);
         return true;
       });
     const urlDomains = new Set(

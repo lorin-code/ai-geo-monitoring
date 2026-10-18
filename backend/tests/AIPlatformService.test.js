@@ -105,7 +105,7 @@ test('reports platform response time as elapsed milliseconds when header is unav
   });
 
   try {
-    const result = await AIPlatformService.queryPlatform('deepseek', '测试问题');
+    const result = await AIPlatformService.queryPlatform('deepseek', '测试问题', { search: false });
     assert.equal(result.success, true);
     assert.equal(result.responseTime, 280);
   } finally {
@@ -136,7 +136,7 @@ test('does not log raw ai platform error response payloads', async () => {
   console.error = (...args) => logs.push(args.join(' '));
 
   try {
-    const result = await AIPlatformService.queryPlatform('deepseek', '测试问题');
+    const result = await AIPlatformService.queryPlatform('deepseek', '测试问题', { search: false });
     assert.equal(result.success, false);
     assert.equal(logs.some((line) => line.includes('status 400')), true);
     assert.equal(logs.some((line) => line.includes('AccountOverdueError')), true);
@@ -198,6 +198,170 @@ test('calls doubao through Ark Responses API with web search enabled', async () 
     AIPlatformService.platforms.doubao.headers = originalHeaders;
   }
 });
+
+test('searches before answering with the configured model and reports total search and answer latency', async (context) => {
+  configureDeepseek(context);
+  process.env.DEEPSEEK_MODEL = 'custom-deepseek-model';
+  const calls = [];
+  context.mock.method(axios, 'post', async (url, data, config) => {
+    calls.push({ url, data, config });
+    return url.endsWith('/tools/search')
+      ? { data: { results: [{ title: '品牌资料', url: 'https://brand.cn/guide', summary: '产品参数' }] }, headers: { 'x-response-time': '25' } }
+      : { data: { choices: [{ message: { content: '可以参考产品参数[1]。' } }] }, headers: { 'x-response-time': '75' } };
+  });
+
+  const result = await AIPlatformService.queryPlatform('deepseek', '最新轮胎推荐');
+
+  assert.equal(result.success, true);
+  assert.equal(result.responseTime, 100);
+  assert.deepEqual(calls.map((call) => call.url), ['https://api.deepseek.com/v1/tools/search', 'https://api.deepseek.com/v1/chat/completions']);
+  assert.deepEqual(calls[0].data, { query: '最新轮胎推荐', ori_question: '最新轮胎推荐', count: 10, need_content: false });
+  assert.equal(calls.every((call) => call.config.headers.Authorization === 'Bearer test-key'), true);
+  assert.equal(calls[1].data.model, 'custom-deepseek-model');
+  assert.deepEqual(calls[1].data.messages.at(-1), { role: 'user', content: '最新轮胎推荐' });
+  assert.equal(result.data.choices[0].message.annotations[0].url_citation.url, 'https://brand.cn/guide');
+});
+
+test('disables search explicitly for internal calls and globally for monitoring', async (context) => {
+  configureDeepseek(context);
+  const calls = [];
+  context.mock.method(axios, 'post', async (url, data) => {
+    calls.push({ url, data });
+    return { data: { choices: [{ message: { content: '纯对话回答' } }] }, headers: {} };
+  });
+
+  const internal = await AIPlatformService.queryPlatform('deepseek', '分析原文', { search: false });
+  process.env.DEEPSEEK_SEARCH_ENABLED = 'false';
+  const monitoring = await AIPlatformService.queryPlatform('deepseek', '测试问题');
+
+  assert.equal(internal.success, true);
+  assert.equal(monitoring.success, true);
+  assert.equal(calls.length, 2);
+  assert.equal(calls.every((call) => call.url.endsWith('/chat/completions')), true);
+  assert.deepEqual(calls[0].data.messages, [{ role: 'user', content: '分析原文' }]);
+  assert.equal(monitoring.data.deepseek_search, undefined);
+});
+
+test('answers after an empty successful search without inventing citations', async (context) => {
+  configureDeepseek(context);
+  const calls = [];
+  context.mock.method(axios, 'post', async (url, data) => {
+    calls.push({ url, data });
+    return { data: url.endsWith('/tools/search') ? { results: [] } : { choices: [{ message: { content: '没有找到可靠资料。' } }] }, headers: {} };
+  });
+
+  const result = await AIPlatformService.queryPlatform('deepseek', '罕见问题');
+
+  assert.equal(result.success, true);
+  assert.equal(calls.length, 2);
+  assert.equal(result.data.deepseek_search.status, 'empty');
+  assert.deepEqual(result.data.choices[0].message.annotations, []);
+});
+
+for (const status of [401, 402]) {
+  test(`fails monitoring after search HTTP ${status} without calling the model or retrying`, async (context) => {
+    configureDeepseek(context);
+    context.mock.method(console, 'error', () => {});
+    const calls = [];
+    context.mock.method(axios, 'post', async (url) => {
+      calls.push(url);
+      const error = new Error('request failed');
+      error.response = { status, data: { error: { code: 'invalid_request_error', message: 'secret-provider-detail' } } };
+      throw error;
+    });
+
+    const result = await AIPlatformService.queryPlatform('deepseek', '测试问题');
+
+    assert.equal(result.success, false);
+    assert.deepEqual(calls, ['https://api.deepseek.com/v1/tools/search']);
+    assert.match(result.error, new RegExp(`status ${status}`));
+    assert.doesNotMatch(result.error, /secret-provider-detail/);
+  });
+}
+
+test('fails monitoring for malformed search responses before generating an answer', async (context) => {
+  configureDeepseek(context);
+  const calls = [];
+  context.mock.method(axios, 'post', async (url) => {
+    calls.push(url);
+    return { data: {}, headers: {} };
+  });
+
+  const result = await AIPlatformService.queryPlatform('deepseek', '测试问题');
+
+  assert.equal(result.success, false);
+  assert.match(result.error, /搜索响应/);
+  assert.deepEqual(calls, ['https://api.deepseek.com/v1/tools/search']);
+});
+
+for (const status of [408, 429, 503]) {
+  test(`retries search HTTP ${status} before generating one answer`, async (context) => {
+    configureDeepseek(context);
+    context.mock.method(console, 'error', () => {});
+    context.mock.method(global, 'setTimeout', (callback) => { queueMicrotask(callback); });
+    const calls = [];
+    context.mock.method(axios, 'post', async (url) => {
+      calls.push(url);
+      if (calls.length === 1) {
+        const error = new Error('temporary search failure');
+        error.response = { status };
+        throw error;
+      }
+      return { data: url.endsWith('/tools/search') ? { results: [] } : { choices: [{ message: { content: '回答' } }] }, headers: {} };
+    });
+
+    const result = await AIPlatformService.queryPlatform('deepseek', '测试问题');
+
+    assert.equal(result.success, true);
+    assert.deepEqual(calls, [
+      'https://api.deepseek.com/v1/tools/search',
+      'https://api.deepseek.com/v1/tools/search',
+      'https://api.deepseek.com/v1/chat/completions'
+    ]);
+  });
+}
+
+test('retries model requests without repeating a successful search', async (context) => {
+  configureDeepseek(context);
+  context.mock.method(console, 'error', () => {});
+  context.mock.method(global, 'setTimeout', (callback) => { queueMicrotask(callback); });
+  const calls = [];
+  context.mock.method(axios, 'post', async (url) => {
+    calls.push(url);
+    if (calls.length === 2) {
+      const error = new Error('temporary model failure');
+      error.response = { status: 503 };
+      throw error;
+    }
+    return { data: url.endsWith('/tools/search') ? { results: [] } : { choices: [{ message: { content: '回答' } }] }, headers: {} };
+  });
+
+  const result = await AIPlatformService.queryPlatform('deepseek', '测试问题');
+
+  assert.equal(result.success, true);
+  assert.deepEqual(calls, [
+    'https://api.deepseek.com/v1/tools/search',
+    'https://api.deepseek.com/v1/chat/completions',
+    'https://api.deepseek.com/v1/chat/completions'
+  ]);
+});
+
+function configureDeepseek(context) {
+  const original = AIPlatformService.platforms.deepseek;
+  const envKeys = ['DEEPSEEK_SEARCH_ENABLED', 'DEEPSEEK_SEARCH_API_URL', 'DEEPSEEK_SEARCH_COUNT', 'DEEPSEEK_MODEL'];
+  const env = Object.fromEntries(envKeys.map((key) => [key, process.env[key]]));
+  context.after(() => {
+    AIPlatformService.platforms.deepseek = original;
+    envKeys.forEach((key) => restoreEnv(key, env[key]));
+  });
+  envKeys.forEach((key) => delete process.env[key]);
+  AIPlatformService.platforms.deepseek = {
+    ...original,
+    apiKey: 'test-key',
+    apiUrl: 'https://api.deepseek.com/v1/chat/completions',
+    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer test-key' }
+  };
+}
 
 function restoreEnv(key, value) {
   if (value === undefined) {

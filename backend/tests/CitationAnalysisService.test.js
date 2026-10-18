@@ -3,6 +3,39 @@ const assert = require('node:assert/strict');
 
 const CitationAnalysisService = require('../services/CitationAnalysisService');
 
+test('extracts clean deduplicated URLs from Markdown inline code in live search answers', () => {
+  const result = CitationAnalysisService.extractSources({
+    responseText: [
+      '**`POST https://api.deepseek.com/v1/tools/search`**',
+      'Search API 的端点为 `https://api.deepseek.com/v1/tools/search`。',
+      '来源 `www.brand.cn/guide`。'
+    ].join('\n'),
+    aiResponse: {}
+  });
+
+  assert.deepEqual(result.sources.map((source) => source.url), [
+    'https://api.deepseek.com/v1/tools/search',
+    'https://brand.cn/guide'
+  ]);
+  assert.equal(result.citation_count, 2);
+});
+
+test('preserves web search titles and origin when the same URL appears in the answer', () => {
+  const result = CitationAnalysisService.extractSources({
+    responseText: '参考 https://brand.cn/guide?utm_source=chat',
+    aiResponse: { choices: [{ message: { annotations: [{
+      type: 'url_citation',
+      url_citation: { url: 'https://brand.cn/guide', title: '品牌资料' }
+    }] } }] },
+    brand: { website: 'https://brand.cn' }
+  });
+
+  assert.deepEqual(result.sources, [{
+    url: 'https://brand.cn/guide', domain: 'brand.cn', title: '品牌资料',
+    source_origin: 'web_search', owned: true, competitor_owned: false
+  }]);
+});
+
 test('extracts unique citation sources from response text and metadata', () => {
   const result = CitationAnalysisService.extractSources({
     responseText: '参考 https://www.michelin.com.cn/tyres 和 https://example.com/a?x=1。',

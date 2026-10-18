@@ -101,7 +101,7 @@ class PromptSuggestionService {
         }
       );
 
-      const result = await queryPlatform(platform, generationQuestion);
+      const result = await queryPlatform(platform, generationQuestion, { search: false });
       if (!result.success) {
         return {
           success: false,

@@ -507,8 +507,8 @@ test('orchestrates bulk generation across AI generation batches', async () => {
     [{ name: '马牌' }],
     {
       count: 45,
-      queryPlatform: async (platform, question) => {
-        calls.push({ platform, question });
+      queryPlatform: async (platform, question, options) => {
+        calls.push({ platform, question, options });
         const match = question.match(/当前只生成本批 (\d+) 条/);
         const count = Number(match?.[1] || 0);
         const prefix = calls.length === 1 ? 'A' : calls.length === 2 ? 'B' : 'C';
@@ -529,6 +529,7 @@ test('orchestrates bulk generation across AI generation batches', async () => {
   assert.equal(result.requested_count, 45);
   assert.deepEqual(result.batches, [20, 20, 5]);
   assert.equal(calls.length, 3);
+  assert.deepEqual(calls.map((call) => call.options), [{ search: false }, { search: false }, { search: false }]);
   assert.equal(result.suggestions.length, 45);
   assert.equal(result.suggestions[44].question, '轮胎场景C5');
 });

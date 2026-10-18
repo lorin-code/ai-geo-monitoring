@@ -132,7 +132,7 @@ class SentimentAnalysisService {
     const question = this.buildAnalysisQuestion({ responseText, brand, competitors });
     let result;
     try {
-      result = await AIPlatformService.queryPlatform('deepseek', question);
+      result = await AIPlatformService.queryPlatform('deepseek', question, { search: false });
     } catch (error) {
       console.warn('DeepSeek 情绪判定异常:', error?.message || error);
       return this.neutral(SENTIMENT_UNAVAILABLE_REASON);

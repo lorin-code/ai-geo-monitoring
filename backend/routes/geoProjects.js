@@ -604,7 +604,7 @@ router.post('/:projectId/prompts/generate', loadProject, async (req, res) => {
       count: requestedCount,
       focus: req.body.focus,
       excludeQuestions: existingPrompts.map((item) => item.question).filter(Boolean),
-      queryPlatform: (targetPlatform, question) => AIPlatformService.queryPlatform(targetPlatform, question),
+      queryPlatform: (targetPlatform, question, queryOptions) => AIPlatformService.queryPlatform(targetPlatform, question, queryOptions),
       extractResponseText: (data) => ResultParserService.extractResponseText(data),
       maxBrandQuestionRatio: 0.15
     });

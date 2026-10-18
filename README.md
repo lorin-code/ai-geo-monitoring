@@ -2,6 +2,16 @@
 
 GoodieAI GEO Monitoring System 是一个面向 Generative Engine Optimization（GEO）的监测系统，用于观察品牌在 AI 搜索、AI 问答和大模型回答中的曝光、提及、推荐与引用来源表现。
 
+## 更新说明
+
+### 2026-10-18：DeepSeek 官方搜索接入
+
+- 接入 DeepSeek 官方独立 Search API，监测时先搜索再由当前模型结合资料回答，覆盖普通检测、项目分析、定时监测与流式预览。
+- 默认开启搜索，复用现有 `DEEPSEEK_API_KEY`；新增搜索开关、结果条数与自定义接口地址配置，详见 [环境变量说明](docs/ENVIRONMENT.md#deepseek-联网监测)。
+- 仅将回答实际使用的搜索结果记录为搜索引用，保留来源标题与搜索标记；修复重复来源丢失元数据、引用编号与链接目标冲突，以及 Markdown 反引号污染 URL 的问题。
+- 情绪判定和 Prompt 建议生成保持纯对话；搜索失败会让本次监测失败，避免静默回退为无搜索回答。
+- 后端 385 项测试通过；真实联调中 Search 与模型回答均返回 HTTP 200，完成搜索结果、回答与引用提取验证。
+
 ## 系统演示
 
 ### 品牌项目工作台
@@ -25,6 +35,7 @@ GoodieAI GEO Monitoring System 是一个面向 Generative Engine Optimization（
 - GEO 检测任务创建、调度与执行记录
 - 多平台 AI 回答结果监测，当前重点支持豆包、DeepSeek
 - 豆包联网搜索调用与引用来源提取
+- DeepSeek 官方 Search API 联网监测与实际引用来源提取，复用现有 API Key，可通过 `DEEPSEEK_SEARCH_ENABLED=false` 关闭
 - 品牌提及率、Share of Voice、引用率、竞品曝光分析
 - AI 回答情绪判断，支持正向、中性、负向标签与风险项沉淀
 - Prompt 库管理、分类、平台选择与历史结果追踪

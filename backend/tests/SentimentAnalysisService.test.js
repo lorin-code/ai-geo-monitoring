@@ -4,6 +4,24 @@ const assert = require('node:assert/strict');
 const AIPlatformService = require('../services/AIPlatformService');
 const SentimentAnalysisService = require('../services/SentimentAnalysisService');
 
+test('analyzes the supplied answer without requesting web search', async (context) => {
+  const originalApiKey = AIPlatformService.platforms.deepseek.apiKey;
+  context.after(() => { AIPlatformService.platforms.deepseek.apiKey = originalApiKey; });
+  AIPlatformService.platforms.deepseek.apiKey = 'test-key';
+  let queryOptions;
+  context.mock.method(AIPlatformService, 'queryPlatform', async (platform, question, options) => {
+    assert.equal(platform, 'deepseek');
+    assert.match(question, /品牌表现不错/);
+    queryOptions = options;
+    return { success: true, data: { choices: [{ message: { content: '{"sentiment":"positive","reason":"认可品牌优势"}' } }] } };
+  });
+
+  const result = await SentimentAnalysisService.analyzeWithDeepSeek({ responseText: '品牌表现不错', brand: { name: '品牌' }, competitors: [] });
+
+  assert.deepEqual(queryOptions, { search: false });
+  assert.equal(result.sentiment, 'positive');
+});
+
 test('parses structured sentiment analysis from fenced DeepSeek output', () => {
   const result = SentimentAnalysisService.parseAnalysis('```json\n{"sentiment":"negative","reason":"回答认为品牌价格高且不推荐","risk_terms":["价格高","不推荐"]}\n```');
 

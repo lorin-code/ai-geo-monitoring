@@ -554,13 +554,9 @@ router.get('/stream', authRequired, async (req, res) => {
     const ok = await bulkConsumeQuota(req, res, 'detection', 1, { sse: true, userId: projectContext.user_id });
     if (!ok) return; // 已写入 SSE 错误并结束
 
-    // 针对不同平台的流式策略：
-    // - deepseek: 使用原生 SSE 流式接口
-    // - doubao/其他平台：使用非流式调用并模拟增量输出，确保豆包复用联网 Responses API
-
     let fullText = '';
 
-    if (platform === 'deepseek') {
+    if (platform === 'deepseek' && !AIPlatformService.isSearchEnabled(platform)) {
       const requestData = {
         model: AIPlatformService.getModelName(platform),
         messages: [{ role: 'user', content: question }],
@@ -728,26 +724,9 @@ router.get('/stream', authRequired, async (req, res) => {
           return res.end();
         }
         fullText = ResultParserService.extractResponseText(result.data);
-        // 模拟增量：优先按句子切分，若不足则按定长切片
-        const toChunks = (text) => {
-          const normalized = String(text || '').replace(/\r\n/g, '\n');
-          // 先按段落拆分，再细分为句子（中文标点与英文标点）
-          let parts = normalized.split(/\n\n+/).flatMap(p => p.split(/(?<=[。！？!?])/));
-          parts = parts.map(s => s.trim()).filter(Boolean);
-          // 若切分过少，退化为定长切片，提升流式可感知性
-          if (parts.length < 6) {
-            const chunks = [];
-            const size = 60; // 约 60 字一片
-            for (let i = 0; i < normalized.length; i += size) {
-              const slice = normalized.slice(i, i + size).trim();
-              if (slice) chunks.push(slice);
-            }
-            return chunks;
-          }
-          return parts;
-        };
-        const chunks = toChunks(fullText);
-        for (const piece of chunks) {
+        const characters = Array.from(fullText);
+        for (let offset = 0; offset < characters.length; offset += 60) {
+          const piece = characters.slice(offset, offset + 60).join('');
           res.write(`data: ${JSON.stringify({ event: 'delta', content: piece })}\n\n`);
           // 尽量刷新，让浏览器及时显示
           if (typeof res.flush === 'function') { try { res.flush(); } catch (_) { } }

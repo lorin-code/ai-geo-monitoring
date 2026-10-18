@@ -40,10 +40,23 @@ cp nextjs-frontend/.env.example nextjs-frontend/.env.local
 
 ## AI 平台
 - `DOUBAO_API_KEY`、`DOUBAO_API_URL`、`DOUBAO_MODEL`
-- `DEEPSEEK_API_KEY`、`DEEPSEEK_API_URL`
+- `DEEPSEEK_API_KEY`、`DEEPSEEK_API_URL`、`DEEPSEEK_MODEL`
+- `DEEPSEEK_SEARCH_ENABLED` DeepSeek 监测是否调用官方搜索，默认 `true`；设为 `false` 使用纯对话
+- `DEEPSEEK_SEARCH_COUNT` 单次搜索结果条数，整数 `1`–`50`，默认 `10`，非法值回退默认值
+- `DEEPSEEK_SEARCH_API_URL` 可选搜索地址，默认由 `DEEPSEEK_API_URL` 推导同一服务下的 `/v1/tools/search`；网关不支持该路径时需要显式配置
 - `KIMI_API_KEY`、`KIMI_API_URL`
 - `QIANWEN_API_KEY`、`QIANWEN_API_URL`
 - 代理（可选）：`HTTPS_PROXY` 或 `HTTP_PROXY` 或 `PROXY_URL`
+
+### DeepSeek 联网监测
+
+复用 `DEEPSEEK_API_KEY`，不需要额外搜索密钥。普通检测、项目分析、定时监测和流式预览默认先调用官方 Search API，再将搜索摘要交给当前 `DEEPSEEK_MODEL` 回答。情绪判定和 Prompt 建议生成始终保持纯对话。
+
+搜索词按 Unicode 字符截取前 128 字，模型收到的用户问题原文保持完整。每条资料优先使用官方 `summary`，最多传入 2000 字；不额外调用 Fetch。只将回答使用的来源编号或链接保存为搜索引用，未使用的结果不计入引用指标。
+
+搜索失败会让本次监测失败，不会自动退回无搜索回答；搜索成功但无结果时允许模型说明资料不足。开启搜索时，流式预览在完整回答生成后以 SSE 分片返回，并保存与普通检测相同的来源元数据；关闭搜索时 DeepSeek 保留原生流式输出。
+
+Search 请求与模型 token 分别计费，Search 按产生非空结果的成功请求计费，账号级限制为 5 QPS；系统会对 408、429 和 5xx 退避重试。价格与限速以 [DeepSeek 官方文档](https://api-docs.deepseek.com/zh-cn/guides/search/) 为准。
 
 ## 数据库
 - `DB_STORAGE` SQLite 数据库文件路径（默认：`database.sqlite`）
