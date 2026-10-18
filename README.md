@@ -1,8 +1,12 @@
 # GoodieAI GEO Monitoring System
 
+**简体中文** | [English](README.en.md)
+
 GoodieAI GEO Monitoring System 是一个面向 Generative Engine Optimization（GEO）的监测系统，用于观察品牌在 AI 搜索、AI 问答和大模型回答中的曝光、提及、推荐与引用来源表现。
 
-## 如需商业定制开发或合作请邮件联系 lorin.msg@gmail.com
+## 商业定制与合作
+
+如需商业定制开发或合作，请邮件联系 [lorin.msg@gmail.com](mailto:lorin.msg@gmail.com)。
 
 ## 更新说明
 
@@ -82,7 +86,7 @@ cd backend && npm install
 cd ../nextjs-frontend && npm install
 ```
 
-创建本地环境变量文件：
+回到仓库根目录，创建本地环境变量文件：
 
 ```bash
 cp backend/.env.example backend/.env
@@ -97,7 +101,7 @@ cp nextjs-frontend/.env.example nextjs-frontend/.env.local
 
 生产环境还应配置 `ALLOWED_ORIGINS`，并通过环境变量注入 `DATABASE_URL`、AI 平台密钥等敏感配置。
 
-统一启动前后端：
+在仓库根目录统一启动前后端：
 
 ```bash
 npm run dev

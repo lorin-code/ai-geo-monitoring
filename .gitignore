@@ -43,3 +43,11 @@ Thumbs.db
 # generated TypeScript/Next files
 *.tsbuildinfo
 next-env.d.ts
+
+# local AI assistant instructions and working notes
+.agents/
+.codex/
+.superpowers/
+docs/superpowers/
+**/AGENTS.md
+**/CLAUDE.md
