@@ -1,4 +1,4 @@
-require('dotenv').config();
+require('../config/environment')();
 const models = require('../models');
 const SchedulerService = require('../services/SchedulerService');
 const { consumeQuotaDirect } = require('../middleware/quota');

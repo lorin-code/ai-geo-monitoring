@@ -4,6 +4,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Card, Col, Descriptions, Empty, Row, Select, Space, Statistic, Table, Tag, Typography, message } from 'antd';
 import axios from 'axios';
+import Link from 'next/link';
 import { getSelectableProjects, resolveSelectedProjectId } from '@/utils/projectSelection.cjs';
 import { buildReportCsv } from '@/utils/reportCsv.cjs';
 import { getApiErrorMessage } from '@/utils/apiErrorMessage.cjs';
@@ -12,7 +13,7 @@ const { Text, Title } = Typography;
 
 const platformLabel = {
   doubao: '豆包',
-  deepseek: 'DeepSeek',
+  deepseek: 'DeepSeek', qianwen: '千问', kimi: 'Kimi',
 };
 
 const typeColor = {
@@ -110,8 +111,11 @@ export default function GeoReportsPage() {
     try {
       const res = await axios.get('/api/geo-projects');
       const rows = getSelectableProjects(extractList(res));
+      const params = new URLSearchParams(window.location.search);
+      const preferredDays = Number(params.get('days'));
+      if ([7, 30, 90].includes(preferredDays)) setDays(preferredDays);
       setProjects(rows);
-      setProjectId((current) => resolveSelectedProjectId(rows, current));
+      setProjectId((current) => resolveSelectedProjectId(rows, current, Number(params.get('projectId'))));
     } catch (error) {
       message.error(getApiErrorMessage(error, '获取品牌项目失败'));
     } finally {
@@ -357,6 +361,7 @@ export default function GeoReportsPage() {
           </Col>
           <Col>
             <Space wrap>
+              <Link href="/geo/rankings">品牌排名</Link>
               <Select
                 loading={projectLoading}
                 placeholder="选择品牌项目"

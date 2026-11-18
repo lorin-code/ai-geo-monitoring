@@ -1,5 +1,6 @@
 const PromptCategoryService = require('./PromptCategoryService');
 const VisibilityAnalysisService = require('./VisibilityAnalysisService');
+const { getMonitoringPlatforms } = require('../config/monitoringPlatforms');
 
 class PromptSuggestionService {
   MIN_SUGGESTION_COUNT = 3;
@@ -39,8 +40,8 @@ class PromptSuggestionService {
         .filter(Boolean)
         .filter((item, index, rows) => rows.findIndex((row) => row.toLowerCase() === item.toLowerCase()) === index)
       : [];
-    const platformLabels = { doubao: '豆包', deepseek: 'DeepSeek' };
-    const platforms = (Array.isArray(project?.platforms) && project.platforms.length ? project.platforms : ['doubao', 'deepseek'])
+    const platformLabels = { doubao: '豆包', deepseek: 'DeepSeek', qianwen: '千问', kimi: 'Kimi' };
+    const platforms = (Array.isArray(project?.platforms) && project.platforms.length ? project.platforms : getMonitoringPlatforms())
       .map((item) => platformLabels[String(item).trim().toLowerCase()])
       .filter(Boolean);
     const focus = String(options.focus || '').trim();

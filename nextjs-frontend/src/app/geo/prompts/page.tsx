@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Button, Card, Col, Descriptions, Empty, Form, Input, InputNumber, Modal, Popconfirm, Row, Select, Space, Switch, Table, Tag, Tooltip, Typography, message } from 'antd';
+import { Alert, Button, Card, Col, Descriptions, Empty, Form, Input, InputNumber, Modal, Popconfirm, Row, Select, Space, Switch, Table, Tag, Tooltip, Typography, message } from 'antd';
 import axios from 'axios';
 import { useRouter } from 'next/navigation';
 import ReactMarkdown from 'react-markdown';
@@ -30,12 +30,16 @@ import {
 } from '@/utils/promptGenerationLimits.cjs';
 import { getProjectPromptRunBlockReason } from '@/utils/projectPromptSummary.cjs';
 import { filterPromptRows } from '@/utils/promptListFilters.cjs';
+import { MONITORING_PLATFORMS, MONITORING_PLATFORM_OPTIONS } from '@/utils/monitoringPlatforms.cjs';
+import useUserPlatforms from '@/hooks/useUserPlatforms';
+import usePromptGenerationPlatforms from '@/hooks/usePromptGenerationPlatforms';
+import Link from 'next/link';
 
 const { Text } = Typography;
 
 const platformLabels = {
   doubao: '豆包',
-  deepseek: 'DeepSeek',
+  deepseek: 'DeepSeek', qianwen: '千问', kimi: 'Kimi',
 };
 
 const statusLabels = {
@@ -87,9 +91,11 @@ const formatRank = (value) => {
 };
 
 export default function GeoPromptsPage() {
+  const { availablePlatforms } = useUserPlatforms();
   const router = useRouter();
   const [projects, setProjects] = useState([]);
   const [selectedProjectId, setSelectedProjectId] = useState(null);
+  const generationPlatforms = usePromptGenerationPlatforms(selectedProjectId);
   const [prompts, setPrompts] = useState([]);
   const [projectsLoading, setProjectsLoading] = useState(false);
   const [promptsLoading, setPromptsLoading] = useState(false);
@@ -109,6 +115,7 @@ export default function GeoPromptsPage() {
   const [generating, setGenerating] = useState(false);
   const [savingGenerated, setSavingGenerated] = useState(false);
   const [generatedSuggestions, setGeneratedSuggestions] = useState([]);
+  const [generatedBy, setGeneratedBy] = useState(null);
   const [generatorForm] = Form.useForm();
   const [form] = Form.useForm();
   const previousProjectIdRef = useRef(null);
@@ -129,11 +136,12 @@ export default function GeoPromptsPage() {
     : [];
 
   const projectPlatforms = useMemo(() => {
-    const list = normalizeList(selectedProject?.platforms).filter((item) => platformLabels[item]);
-    return list.length ? list : ['doubao', 'deepseek'];
+    const list = normalizeList(selectedProject?.platforms).filter((item) => MONITORING_PLATFORMS.includes(item));
+    return list.length ? list : MONITORING_PLATFORMS;
   }, [selectedProject]);
 
   const getProjectPlatforms = () => projectPlatforms;
+  const getUsableProjectPlatforms = () => projectPlatforms.filter((platform) => availablePlatforms.includes(platform));
 
   const filteredPrompts = useMemo(() => {
     return filterPromptRows(prompts, {
@@ -168,6 +176,7 @@ export default function GeoPromptsPage() {
   };
 
   const getPromptRunDisabledReason = (row) => {
+    if (getPromptPlatforms(row).some((platform) => !availablePlatforms.includes(platform))) return '请先在个人中心校验并保存 Prompt 平台的密钥';
     const reason = getProjectPromptRunBlockReason([row], getProjectPlatforms());
     return reason ? promptRunBlockMessages[reason] : '';
   };
@@ -380,6 +389,7 @@ export default function GeoPromptsPage() {
       historyRequestRef.current += 1;
       runRequestRef.current += 1;
       setGeneratedSuggestions([]);
+      setGeneratedBy(null);
       setSavingGenerated(false);
       setHistoryOpen(false);
       setHistoryPrompt(null);
@@ -421,7 +431,7 @@ export default function GeoPromptsPage() {
       const payload = {
         question: String(values.question || '').trim(),
         tags: normalizeList(values.tags),
-        platforms: getProjectPlatforms(),
+        platforms: getUsableProjectPlatforms(),
         enabled: values.enabled !== false,
       };
       if (editingPrompt?.id) {
@@ -453,7 +463,7 @@ export default function GeoPromptsPage() {
       await axios.post(`/api/geo-projects/${mutationProjectId}/prompts`, {
         question: suggestion.question,
         tags: normalizeList(suggestion.tags),
-        platforms: getProjectPlatforms(),
+        platforms: getUsableProjectPlatforms(),
         enabled: true,
       });
       if (!(generatedSaveRequestRef.current === requestId && isCurrentPromptProject(mutationProjectId))) return;
@@ -484,7 +494,7 @@ export default function GeoPromptsPage() {
           await axios.post(`/api/geo-projects/${mutationProjectId}/prompts`, {
             question: suggestion.question,
             tags: normalizeList(suggestion.tags),
-            platforms: getProjectPlatforms(),
+            platforms: getUsableProjectPlatforms(),
             enabled: true,
           });
           saved += 1;
@@ -516,6 +526,10 @@ export default function GeoPromptsPage() {
     let requestId = 0;
     const generationProjectId = selectedProjectId;
     try {
+      if (!generationPlatforms.platform || generationPlatforms.loading) {
+        message.warning('请选择已校验的生成模型');
+        return;
+      }
       const values = await generatorForm.validateFields();
       requestId = generationRequestRef.current + 1;
       generationRequestRef.current = requestId;
@@ -525,12 +539,14 @@ export default function GeoPromptsPage() {
         Math.min(PROMPT_GENERATION_MAX_COUNT, Number(values.count || 10))
       );
       const res = await axios.post(`/api/geo-projects/${generationProjectId}/prompts/generate`, {
+        platform: generationPlatforms.platform,
         count: requestedCount,
         focus: values.focus || '',
       });
       const suggestions = Array.isArray(res?.data?.data?.suggestions) ? res.data.data.suggestions : [];
       if (generationRequestRef.current === requestId && currentProjectIdRef.current === generationProjectId) {
         setGeneratedSuggestions(suggestions);
+        setGeneratedBy({ platform: res.data.data.platform, model: res.data.data.model });
         message.success(`已生成 ${suggestions.length} 条 Prompt 建议`);
       }
     } catch (error) {
@@ -813,7 +829,7 @@ export default function GeoPromptsPage() {
           <Col flex="auto">
             <Space wrap>
               <Button size="small" onClick={() => fetchPrompts(selectedProjectId, days)} disabled={!selectedProjectId}>刷新</Button>
-              <Button size="small" type="primary" onClick={openCreate} disabled={!selectedProjectId}>新建 Prompt</Button>
+              <Button size="small" type="primary" onClick={openCreate} disabled={!selectedProjectId || !getUsableProjectPlatforms().length}>新建 Prompt</Button>
               <Text type="secondary">
                 {selectedProject
                   ? `当前项目：${selectedProject.name}｜监测平台：${getProjectPlatforms().map((item) => platformLabels[item]).join('、')}`
@@ -826,9 +842,20 @@ export default function GeoPromptsPage() {
 
       <Card
         title="生成 Prompt 建议"
-        extra={<Button type="primary" loading={generating} disabled={!selectedProjectId || savingGenerated} onClick={generatePrompts}>生成建议</Button>}
+        extra={<Button type="primary" loading={generating} disabled={!selectedProjectId || savingGenerated || generationPlatforms.loading || !generationPlatforms.platform} onClick={generatePrompts}>生成建议</Button>}
       >
+        {generationPlatforms.error && <Alert type="error" showIcon title={generationPlatforms.error}
+          action={<Button size="small" onClick={generationPlatforms.retry}>重试</Button>} />}
+        {selectedProjectId && !generationPlatforms.loading && !generationPlatforms.error && !generationPlatforms.platform && <p>请先<Link href="/geo/profile">配置模型密钥</Link>，校验通过后可生成建议。</p>}
         <Form form={generatorForm} layout="inline" initialValues={{ count: 10 }}>
+          <Form.Item label="生成模型" extra="使用个人中心保存的模型；生成与后续监测平台可分别设置。">
+            <Select aria-label="生成模型" value={generationPlatforms.platform || undefined}
+              onChange={generationPlatforms.setPlatform} loading={generationPlatforms.loading}
+              disabled={!selectedProjectId || generating || generationPlatforms.loading}
+              placeholder="请选择已校验的模型" style={{ width: 300, maxWidth: '100%' }}
+              options={generationPlatforms.items.map((item) => ({ value: item.platform,
+                label: `${item.name} · ${item.model}${item.available ? '' : '（未配置有效密钥）'}`, disabled: !item.available }))} />
+          </Form.Item>
           <Form.Item name="focus" label="生成重点">
             <Input placeholder="例如：购买决策、竞品对比、价格顾虑" allowClear style={{ width: 320 }} />
           </Form.Item>
@@ -848,6 +875,9 @@ export default function GeoPromptsPage() {
             </Space>
           </Form.Item>
         </Form>
+        {generatedSuggestions.length > 0 && generatedBy && <p><Text type="secondary">
+          本批建议由 {platformLabels[generatedBy.platform] || generatedBy.platform}（{generatedBy.model}）生成。
+        </Text></p>}
         {generatedSuggestions.length ? (
             <Table
               style={{ marginTop: 12 }}
@@ -909,8 +939,7 @@ export default function GeoPromptsPage() {
                   onChange={setPromptPlatformFilter}
                   options={[
                     { label: '全部平台', value: 'all' },
-                    { label: '豆包', value: 'doubao' },
-                    { label: 'DeepSeek', value: 'deepseek' },
+                    ...MONITORING_PLATFORM_OPTIONS,
                   ]}
                 />
                 <Select
@@ -1014,7 +1043,7 @@ export default function GeoPromptsPage() {
               title: '平台',
               dataIndex: 'platform',
               width: 110,
-              render: (value) => <Tag>{value === 'doubao' ? '豆包' : value === 'deepseek' ? 'DeepSeek' : value}</Tag>
+              render: (value) => <Tag>{value === 'doubao' ? '豆包' : value === 'deepseek' ? 'DeepSeek' : value === 'qianwen' ? '千问' : value === 'kimi' ? 'Kimi' : value}</Tag>
             },
             {
               title: '状态',

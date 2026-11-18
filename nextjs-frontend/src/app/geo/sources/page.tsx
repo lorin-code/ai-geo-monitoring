@@ -13,7 +13,7 @@ const { Text, Title } = Typography;
 
 const platformLabel = {
   doubao: '豆包',
-  deepseek: 'DeepSeek',
+  deepseek: 'DeepSeek', qianwen: '千问', kimi: 'Kimi',
 };
 
 const typeColor = {

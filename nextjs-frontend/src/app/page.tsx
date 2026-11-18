@@ -9,14 +9,13 @@ import { useRouter } from 'next/navigation';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import { clearAuth } from '@/lib/axiosConfig';
+import { MONITORING_PLATFORM_OPTIONS, MONITORING_PLATFORM_NAMES } from '@/utils/monitoringPlatforms.cjs';
 
 const { Content } = Layout;
 const { Title, Paragraph } = Typography;
 
 // 图片路径
 const bannerImg = '/assets/banner.svg';
-const logoDoubao = '/assets/platforms/doubao.svg';
-const logoDeepseek = '/assets/platforms/deepseek.svg';
 
 export default function HomePage() {
   const router = useRouter();
@@ -27,10 +26,10 @@ export default function HomePage() {
   };
 
   // 平台 logos
-  const platformLogos = [
-    { src: logoDoubao, name: '豆包' },
-    { src: logoDeepseek, name: 'DeepSeek' },
-  ];
+  const platformLogos = MONITORING_PLATFORM_OPTIONS.map((platform) => ({
+    src: `/assets/platforms/${platform.value}.svg`,
+    name: platform.label,
+  }));
 
   return (
     <Layout className="layout">
@@ -59,7 +58,7 @@ export default function HomePage() {
               ))}
             </div>
             <Paragraph className="hero-desc" style={{ marginBottom: 24 }}>
-              深度洞察品牌在人工智能推荐系统中的表现，释放 AI 搜索流量增长潜力，掌控大模型如何谈论你；在豆包、DeepSeek中稳定获取需求与可见性。
+              深度洞察品牌在人工智能推荐系统中的表现，释放 AI 搜索流量增长潜力，掌控大模型如何谈论你；在 {MONITORING_PLATFORM_NAMES} 中追踪品牌提及与可见性。
             </Paragraph>
             <Space size="middle" className="hero-actions">
               <Button type="primary" size="large" className="pill-btn" icon={<ThunderboltOutlined />} onClick={() => router.push('/geo')}>
@@ -143,7 +142,7 @@ export default function HomePage() {
                 label: '支持哪些AI平台？',
                 children: (
                   <Paragraph className="section-subtitle">
-                    豆包、DeepSeek（更多引擎持续接入）。
+                    当前监测平台：{MONITORING_PLATFORM_NAMES}。
                   </Paragraph>
                 )
               },

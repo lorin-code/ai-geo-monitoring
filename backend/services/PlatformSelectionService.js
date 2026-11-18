@@ -1,7 +1,9 @@
-const MAINLAND_PLATFORMS = ['doubao', 'deepseek'];
+const { getMonitoringPlatforms } = require('../config/monitoringPlatforms');
+const MAINLAND_PLATFORMS = getMonitoringPlatforms();
 const PLATFORM_LABELS = {
   doubao: '豆包',
-  deepseek: 'DeepSeek'
+  deepseek: 'DeepSeek',
+  qianwen: '千问', kimi: 'Kimi'
 };
 
 function asArray(value) {
@@ -11,6 +13,17 @@ function asArray(value) {
 }
 
 class PlatformSelectionService {
+  validateUsable(value) {
+    const available = require('./AIPlatformService').getAvailablePlatforms();
+    const selected = asArray(value);
+    const result = this.validate(selected.length ? value : available);
+    if (!available.length || (result.ok && result.platforms.some((platform) => !available.includes(platform)))) {
+      return { ok: false, platforms: [], invalid_platforms: result.platforms,
+        message: '所选平台尚未配置有效密钥，请在个人中心校验并保存后使用' };
+    }
+    return result;
+  }
+
   getSupportedPlatforms() {
     return [...MAINLAND_PLATFORMS];
   }

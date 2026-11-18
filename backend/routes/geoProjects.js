@@ -32,6 +32,8 @@ const ProjectArchiveService = require('../services/ProjectArchiveService');
 const ProjectDeletionService = require('../services/ProjectDeletionService');
 const ProjectLifecycleService = require('../services/ProjectLifecycleService');
 const ProjectFieldNormalizationService = require('../services/ProjectFieldNormalizationService');
+const UserPlatformContext = require('../services/UserPlatformContext');
+const providerCatalog = require('../config/providerCatalog');
 
 function asArray(value) {
   return ProjectFieldNormalizationService.normalizeList(value);
@@ -116,7 +118,7 @@ async function loadProject(req, res, next) {
     if (!project) return res.status(404).json({ success: false, message: '品牌项目不存在' });
     if (!canAccess(req, project)) return res.status(403).json({ success: false, message: '无权访问该品牌项目' });
     req.brandProject = project;
-    return next();
+    return await UserPlatformContext.run(project.user_id, next);
   } catch (error) {
     return res.status(500).json({ success: false, message: '读取品牌项目失败' });
   }
@@ -221,6 +223,9 @@ router.post('/', async (req, res) => {
     if (!projectFields.name) return res.status(400).json({ success: false, message: '品牌名称不能为空' });
     const platformResult = PlatformSelectionService.validate(req.body.platforms);
     if (!platformResult.ok) return platformValidationError(res, platformResult);
+    const usable = PlatformSelectionService.validateUsable(req.body.platforms);
+    if (!usable.ok) return platformValidationError(res, usable);
+    platformResult.platforms = usable.platforms;
     const duplicate = await BrandProjectService.findDuplicateProject(req.user.id, {
       name: projectFields.name,
       aliases: projectFields.aliases || []
@@ -332,9 +337,16 @@ router.put('/:id', loadProject, async (req, res) => {
     if (req.body.platforms !== undefined) {
       platformResult = PlatformSelectionService.validate(req.body.platforms);
       if (!platformResult.ok) return platformValidationError(res, platformResult);
+      const usable = PlatformSelectionService.validateUsable(req.body.platforms);
+      if (!usable.ok) return platformValidationError(res, usable);
+      platformResult.platforms = usable.platforms;
       payload.platforms = platformResult.platforms;
     }
     Object.assign(payload, cleanMonitoringPayload(req.body, req.brandProject.toJSON(), platformResult?.platforms));
+    if (payload.monitoring_enabled === true) {
+      const usable = PlatformSelectionService.validateUsable(payload.platforms || req.brandProject.platforms);
+      if (!usable.ok) return platformValidationError(res, usable);
+    }
     const archiveRequested = req.body.status === 'archived';
     const restoreRequested = req.body.status === 'active' && req.brandProject.status === 'archived';
     if (restoreRequested) {
@@ -576,13 +588,27 @@ router.get('/:projectId/prompts', loadProject, async (req, res) => {
   }
 });
 
+router.get('/:projectId/prompts/generation-platforms', loadProject, (req, res) => {
+  const platforms = PlatformSelectionService.getSupportedPlatforms().map((platform) => {
+    const config = AIPlatformService.platforms[platform];
+    return { platform, name: providerCatalog[platform].name,
+      model: config?.model || providerCatalog[platform].model, available: Boolean(config?.apiKey) };
+  });
+  const available = platforms.filter((item) => item.available).map((item) => item.platform);
+  res.json({ success: true, data: { platforms,
+    default_platform: available.find((item) => req.brandProject.platforms?.includes(item)) || available[0] || null } });
+});
+
 router.post('/:projectId/prompts/generate', loadProject, async (req, res) => {
   try {
     const archivedResponse = rejectArchivedProjectMutation(req, res, '归档项目不能生成 Prompt 建议');
     if (archivedResponse) return archivedResponse;
-    const platform = 'deepseek';
-    if (!AIPlatformService.platforms.deepseek?.apiKey) {
-      return res.status(400).json({ success: false, message: 'Prompt 建议暂不可用，请联系管理员处理' });
+    const available = AIPlatformService.getAvailablePlatforms();
+    const platform = req.body.platform === undefined
+      ? (available.find((item) => req.brandProject.platforms?.includes(item)) || available[0])
+      : req.body.platform;
+    if (typeof platform !== 'string' || !available.includes(platform)) {
+      return res.status(400).json({ success: false, message: '请选择已校验的生成平台，请先在个人中心校验并保存对应密钥' });
     }
 
     const [competitors, existingPrompts] = await Promise.all([
@@ -622,6 +648,7 @@ router.post('/:projectId/prompts/generate', loadProject, async (req, res) => {
       message: 'Prompt 建议已生成',
       data: {
         platform,
+        model: AIPlatformService.platforms[platform].model,
         requested_count: requestedCount,
         batch_count: generation.batch_count,
         suggestions
@@ -646,6 +673,8 @@ router.post('/:projectId/prompts', loadProject, async (req, res) => {
     if (groupResult.error) return res.status(400).json({ success: false, message: groupResult.error });
     const platformResult = PlatformSelectionService.validateWithinProject(req.body.platforms, req.brandProject.platforms);
     if (!platformResult.ok) return platformValidationError(res, platformResult);
+    const usable = PlatformSelectionService.validateUsable(platformResult.platforms);
+    if (!usable.ok) return platformValidationError(res, usable);
     const prompt = await TrackedPrompt.create({
       project_id: req.brandProject.id,
       prompt_group_id: groupResult.value,
@@ -687,6 +716,8 @@ router.put('/:projectId/prompts/:promptId', loadProject, async (req, res) => {
     if (req.body.platforms !== undefined) {
       const platformResult = PlatformSelectionService.validateWithinProject(req.body.platforms, req.brandProject.platforms);
       if (!platformResult.ok) return platformValidationError(res, platformResult);
+      const usable = PlatformSelectionService.validateUsable(platformResult.platforms);
+      if (!usable.ok) return platformValidationError(res, usable);
       payload.platforms = platformResult.platforms;
     }
     if (req.body.enabled != null) payload.enabled = !!req.body.enabled;

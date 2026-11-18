@@ -1,9 +1,9 @@
 const PLATFORM_LABELS = {
   doubao: '豆包',
-  deepseek: 'DeepSeek',
+  deepseek: 'DeepSeek', qianwen: '千问', kimi: 'Kimi',
 };
 
-const DEFAULT_PROJECT_PLATFORMS = ['doubao', 'deepseek'];
+const { MONITORING_PLATFORMS: DEFAULT_PROJECT_PLATFORMS } = require('./monitoringPlatforms.cjs');
 
 function normalizeList(value) {
   return Array.isArray(value)
@@ -12,9 +12,9 @@ function normalizeList(value) {
 }
 
 function normalizePromptPlatforms(promptPlatforms, projectPlatforms = DEFAULT_PROJECT_PLATFORMS) {
-  const projectList = normalizeList(projectPlatforms).filter((item) => PLATFORM_LABELS[item]);
+  const projectList = normalizeList(projectPlatforms).filter((item) => DEFAULT_PROJECT_PLATFORMS.includes(item));
   const fallback = projectList.length ? projectList : DEFAULT_PROJECT_PLATFORMS;
-  const promptList = normalizeList(promptPlatforms).filter((item) => PLATFORM_LABELS[item]);
+  const promptList = normalizeList(promptPlatforms).filter((item) => DEFAULT_PROJECT_PLATFORMS.includes(item));
   return promptList.length ? promptList : fallback;
 }
 

@@ -1,7 +1,11 @@
 const axios = require('axios');
 const https = require('https');
 const DeepSeekSearchService = require('./DeepSeekSearchService');
-const MAINLAND_MONITORING_PLATFORMS = ['doubao', 'deepseek'];
+const KimiSearchService = require('./KimiSearchService');
+const { getMonitoringPlatforms } = require('../config/monitoringPlatforms');
+const MAINLAND_MONITORING_PLATFORMS = getMonitoringPlatforms();
+const UserPlatformContext = require('./UserPlatformContext');
+const catalog = require('../config/providerCatalog');
 let HttpsProxyAgent;
 try {
   const proxyAgentModule = require('https-proxy-agent');
@@ -12,47 +16,56 @@ try {
 
 class AIPlatformService {
   constructor() {
-    this.platforms = {
+    this.unconfiguredPlatforms = {
       doubao: {
         name: '豆包',
         apiUrl: process.env.DOUBAO_API_URL || 'https://ark.cn-beijing.volces.com/api/v3/responses',
-        apiKey: process.env.DOUBAO_API_KEY,
+        apiKey: undefined,
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${process.env.DOUBAO_API_KEY}`
         }
       },
       deepseek: {
         name: 'DeepSeek',
         apiUrl: process.env.DEEPSEEK_API_URL || 'https://api.deepseek.com/v1/chat/completions',
-        apiKey: process.env.DEEPSEEK_API_KEY,
+        apiKey: undefined,
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${process.env.DEEPSEEK_API_KEY}`
         }
       },
       kimi: {
         name: 'Kimi',
-        apiUrl: process.env.KIMI_API_URL || 'https://api.kimi.com/v1/chat',
-        apiKey: process.env.KIMI_API_KEY,
+        apiUrl: catalog.kimi.apiUrl,
+        apiKey: undefined,
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${process.env.KIMI_API_KEY}`
         }
       },
       qianwen: {
         name: '千问',
-        apiUrl: process.env.QIANWEN_API_URL || 'https://api.qianwen.com/v1/chat',
-        apiKey: process.env.QIANWEN_API_KEY,
+        apiUrl: catalog.qianwen.apiUrl,
+        apiKey: undefined,
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${process.env.QIANWEN_API_KEY}`
         }
       }
   };
   }
 
+  get platforms() {
+    return this.userConfigs || UserPlatformContext.get()?.configs || this.unconfiguredPlatforms;
+  }
+
+  async forUser(userId) {
+    const scoped = Object.create(this);
+    scoped.userConfigs = await require('./UserPlatformCredentialService').loadConfigs(userId);
+    return scoped;
+  }
+
   async queryPlatform(platform, question, options = {}) {
+    if (!MAINLAND_MONITORING_PLATFORMS.includes(platform)) {
+      return { success: false, error: `未启用的AI平台: ${platform}`, platform };
+    }
     const platformConfig = this.platforms[platform];
     if (!platformConfig) {
       return { success: false, error: `不支持的AI平台: ${platform}`, platform };
@@ -61,28 +74,33 @@ class AIPlatformService {
       return { success: false, error: `${platformConfig.name} API密钥未配置`, platform };
     }
 
-    const requestData = this.buildRequestData(platform, question);
+    const requestData = this.buildRequestData(platform, question, options);
     const requestUrl = this.getApiUrl(platform);
 
     if (!this.isSearchEnabled(platform, options)) {
-      return this.requestPlatform(platform, requestUrl, requestData);
+      const result = await this.requestPlatform(platform, requestUrl, requestData);
+      if (platform === 'qianwen' && result.success && options.search !== false) {
+        result.data = require('./QianwenSearchService').attachCitations(result.data);
+      }
+      return result;
     }
 
     try {
-      const searchRequest = DeepSeekSearchService.buildSearchRequest(question);
+      const searchService = platform === 'kimi' ? KimiSearchService : DeepSeekSearchService;
+      const searchRequest = searchService.buildSearchRequest(question);
       const searchResult = await this.requestPlatform(
         platform,
-        DeepSeekSearchService.getApiUrl(requestUrl),
+        platform === 'kimi' ? catalog.kimi.searchUrl : (platformConfig.userCredential ? catalog.deepseek.searchUrl : DeepSeekSearchService.getApiUrl(requestUrl)),
         searchRequest
       );
       if (!searchResult.success) return searchResult;
-      const results = DeepSeekSearchService.normalizeResults(searchResult.data, searchRequest.count);
-      requestData.messages = DeepSeekSearchService.buildMessages(question, results);
+      const results = searchService.normalizeResults(searchResult.data, searchRequest.count || searchRequest.limit);
+      requestData.messages = searchService.buildMessages(question, results);
       const answer = await this.requestPlatform(platform, requestUrl, requestData);
       if (!answer.success) return answer;
       return {
         ...answer,
-        data: DeepSeekSearchService.attachSearchMetadata(answer.data, results, searchRequest.query),
+        data: searchService.attachSearchMetadata(answer.data, results, searchRequest.query || searchRequest.text_query),
         responseTime: searchResult.responseTime + answer.responseTime
       };
     } catch (error) {
@@ -91,6 +109,7 @@ class AIPlatformService {
   }
 
   isSearchEnabled(platform, options = {}) {
+    if (platform === 'kimi') return options.search !== false;
     return platform === 'deepseek'
       && options.search !== false
       && String(process.env.DEEPSEEK_SEARCH_ENABLED || 'true').trim().toLowerCase() !== 'false';
@@ -118,6 +137,7 @@ class AIPlatformService {
             ...platformConfig.headers,
             'Accept': 'application/json'
           },
+          maxRedirects: 0,
           // 长回复可能耗时较长，提升超时时间
           timeout: 90000,
           // 放开响应/请求大小限制，避免长文本触发中断
@@ -182,6 +202,7 @@ class AIPlatformService {
   getApiUrl(platform) {
     const platformConfig = this.platforms[platform];
     const configuredUrl = platformConfig?.apiUrl || '';
+    if (platformConfig?.userCredential) return configuredUrl;
     if (platform !== 'doubao') return configuredUrl;
 
     const responsesUrl = process.env.DOUBAO_RESPONSES_API_URL?.trim();
@@ -189,7 +210,7 @@ class AIPlatformService {
     return configuredUrl.replace(/\/chat\/completions\/?$/i, '/responses');
   }
 
-  buildRequestData(platform, question) {
+  buildRequestData(platform, question, options = {}) {
     if (platform === 'doubao') {
       return {
         model: this.getDoubaoResponsesModel(),
@@ -201,7 +222,7 @@ class AIPlatformService {
             ]
           }
         ],
-        tools: [
+        tools: options.search === false ? [] : [
           { type: 'web_search' }
         ],
         temperature: 0.7,
@@ -212,12 +233,15 @@ class AIPlatformService {
     return {
       model: this.getModelName(platform),
       messages: [{ role: 'user', content: question }],
-      temperature: 0.7,
-      max_tokens: this.getMaxTokens(platform)
+      ...(platform === 'kimi' ? KimiSearchService.modelParameters(this.getModelName(platform)) : { temperature: 0.7 }),
+      max_tokens: this.getMaxTokens(platform),
+      ...(platform === 'qianwen' && options.search !== false
+        ? { enable_search: true, search_options: { enable_source: true, enable_citation: true, citation_format: '[ref_<number>]' } } : {})
     };
   }
 
   getDoubaoResponsesModel() {
+    if (this.platforms.doubao?.userCredential) return this.platforms.doubao.model;
     const configuredModel = process.env.DOUBAO_RESPONSES_MODEL?.trim();
     if (configuredModel) return configuredModel;
     return 'doubao-seed-1-6-250615';
@@ -225,11 +249,12 @@ class AIPlatformService {
 
   // 获取平台对应的模型名称
   getModelName(platform) {
+    if (this.platforms[platform]?.userCredential) return this.platforms[platform].model;
     const defaults = {
       // Ark 官方示例模型
       doubao: 'doubao-1-5-pro-32k-250115',
       deepseek: 'deepseek-chat',
-      kimi: 'kimi-chat',
+      kimi: catalog.kimi.model,
       qianwen: 'qwen-turbo'
     };
     const key = String(platform || '').toUpperCase() + '_MODEL';

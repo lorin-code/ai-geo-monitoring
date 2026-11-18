@@ -4,8 +4,10 @@ const AIPlatformService = require('./AIPlatformService');
 const ResultParserService = require('./ResultParserService');
 const ProjectRunService = require('./ProjectRunService');
 const ProjectRecordFinalizationService = require('./ProjectRecordFinalizationService');
+const UserPlatformContext = require('./UserPlatformContext');
 const { consumeQuotaDirect } = require('../middleware/quota');
-const MAINLAND_PROJECT_PLATFORMS = ['doubao', 'deepseek'];
+const { getMonitoringPlatforms } = require('../config/monitoringPlatforms');
+const MAINLAND_PROJECT_PLATFORMS = getMonitoringPlatforms();
 const SAFE_PLATFORM_FAILURE_MESSAGE = '监测平台调用失败，请稍后重试';
 
 function computeNextRun(dailyTime, timezone) {
@@ -67,7 +69,15 @@ async function submitDetectionForSchedule(schedule, options = {}) {
   }
 
   const { user_id, question, platforms, highlight_keywords } = schedule;
+  if (!Number.isSafeInteger(Number(user_id)) || Number(user_id) <= 0) return { ok: false, skipped: true, reason: '任务所属用户无效' };
+  if (UserPlatformContext.get()?.userId !== Number(user_id)) {
+    return UserPlatformContext.run(user_id, () => submitDetectionForSchedule(schedule, { ...options, projectValidated: true, project: projectData }));
+  }
   const platformsList = normalizeSchedulePlatforms(platforms, projectData);
+  const available = AIPlatformService.getAvailablePlatforms();
+  if (!platformsList.length || platformsList.some((platform) => !available.includes(platform))) {
+    return { ok: false, skipped: true, reason: '平台密钥未校验或已删除，请在个人中心配置' };
+  }
   const keywordsArr = Array.isArray(highlight_keywords) ? highlight_keywords : [];
 
   // 配额检查：严格按会员控制，每次按平台数量扣减
@@ -333,12 +343,12 @@ class SchedulerService {
       User.findByPk(project.user_id)
     ]);
     if (!user) return false;
-    const result = await ProjectRunService.runProject({
+    const result = await UserPlatformContext.run(project.user_id, () => ProjectRunService.runProject({
       project,
       prompts: prompts.map((item) => item.toJSON()),
       platforms: normalized.platforms,
       user
-    });
+    }));
     if (!result?.ok) {
       await project.update({
         monitoring_time: normalized.monitoring_time,

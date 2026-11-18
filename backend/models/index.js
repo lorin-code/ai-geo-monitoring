@@ -13,6 +13,7 @@ const TrackedPrompt = require('./TrackedPrompt');
 const VisibilityMetric = require('./VisibilityMetric');
 const AlertRule = require('./AlertRule');
 const ReportSnapshot = require('./ReportSnapshot');
+const UserPlatformCredential = require('./UserPlatformCredential');
 
 // 定义关联关系
 User.hasMany(QuestionRecord, {
@@ -46,6 +47,8 @@ DetectionSchedule.belongsTo(User, {
 });
 
 User.hasMany(BrandProject, { foreignKey: 'user_id', as: 'brandProjects' });
+User.hasMany(UserPlatformCredential, { foreignKey: 'user_id', as: 'platformCredentials' });
+UserPlatformCredential.belongsTo(User, { foreignKey: 'user_id', as: 'user' });
 BrandProject.belongsTo(User, { foreignKey: 'user_id', as: 'user' });
 
 BrandProject.hasMany(BrandCompetitor, { foreignKey: 'project_id', as: 'competitors' });
@@ -87,7 +90,8 @@ const models = {
   TrackedPrompt,
   VisibilityMetric,
   AlertRule,
-  ReportSnapshot
+  ReportSnapshot,
+  UserPlatformCredential
 };
 
 module.exports = models;

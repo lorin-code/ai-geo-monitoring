@@ -2,17 +2,15 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
-require('dotenv').config();
+const loadEnvironment = require('./config/environment');
+loadEnvironment();
+const { port: PORT, allowedOrigins } = loadEnvironment.getServerConfig();
 const bcrypt = require('bcryptjs');
 
 const app = express();
 
 // 中间件
 // CORS 配置白名单
-const allowedOrigins = process.env.ALLOWED_ORIGINS
-  ? process.env.ALLOWED_ORIGINS.split(',')
-  : ['http://localhost:5173', 'http://localhost:3000'];
-
 app.use(cors({
   origin: function(origin, callback) {
     // 允许没有 origin 的请求（如移动应用、服务器间调用）
@@ -80,19 +78,21 @@ const scheduleRoutes = require('./routes/schedules');
 const geoProjectRoutes = require('./routes/geoProjects');
 const SchedulerService = require('./services/SchedulerService');
 const { authRequired } = require('./middleware/auth');
+const userPlatformContext = require('./services/UserPlatformContext').middleware;
 
 // 用户登录与公开用户接口保持在 /api/users 下（登录无需鉴权）
 app.use('/api/users', userRoutes);
 // 公开验证码接口（注册用）
 app.use('/api/captcha', captchaRoutes);
 // 需要登录的接口：检测、统计、平台自检
-app.use('/api/detection', authRequired, detectionRoutes);
+app.use('/api/detection', authRequired, userPlatformContext, detectionRoutes);
 app.use('/api/statistics', authRequired, statisticsRoutes);
 app.use('/api/platforms', authRequired, platformsRoutes);
 app.use('/api/membership', authRequired, membershipRoutes);
 // 定时任务接口（需要登录）
-app.use('/api/schedules', scheduleLimiter, authRequired, scheduleRoutes);
-app.use('/api/geo-projects', authRequired, geoProjectRoutes);
+app.use('/api/schedules', scheduleLimiter, authRequired, userPlatformContext, scheduleRoutes);
+app.use('/api/geo-projects', authRequired, userPlatformContext, geoProjectRoutes);
+app.use('/api/brand-rankings', authRequired, require('./routes/brandRankings'));
 // 设置路由：内部已对管理接口使用 adminRequired；公开接口（如 /seo、/notice）无需统一鉴权
 app.use('/api/settings', settingsRoutes);
 
@@ -124,8 +124,6 @@ app.use((req, res) => {
     message: '接口不存在'
   });
 });
-
-const PORT = process.env.PORT || 3000;
 
 // 数据库同步并启动服务器
 async function ensureExistingTableProjectColumns() {
@@ -395,7 +393,7 @@ async function ensureDefaultSettings() {
     }
     app.listen(PORT, () => {
       console.log(`服务器运行在端口 ${PORT}`);
-      console.log(`健康检查: http://localhost:${PORT}/api/health`);
+      console.log('健康检查路径: /api/health');
     });
   } catch (err) {
     console.error('数据库连接失败:', err);

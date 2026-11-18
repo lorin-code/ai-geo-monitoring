@@ -1,5 +1,7 @@
 'use client';
 
+import { MONITORING_PLATFORM_OPTIONS } from '@/utils/monitoringPlatforms.cjs';
+
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Card, Table, Space, Button, Input, Select, Tag, message } from 'antd';
 import axios from 'axios';
@@ -70,7 +72,7 @@ export default function AdminHistoryPage() {
     fetchHistory(1, limit, {});
   }, [fetchHistory, limit]);
 
-  const PLATFORM_LABELS = useMemo(() => ({ doubao: '豆包', deepseek: 'DeepSeek' }), []);
+  const PLATFORM_LABELS = useMemo(() => ({ doubao: '豆包', deepseek: 'DeepSeek', qianwen: '千问', kimi: 'Kimi' }), []);
 
   const columns = useMemo(() => [
     { title: '检测时间', dataIndex: 'created_at', key: 'created_at', width: 160, render: (t: any) => {
@@ -121,7 +123,7 @@ export default function AdminHistoryPage() {
             allowClear
             value={platform}
             onChange={setPlatform}
-            options={['doubao','deepseek'].map(v => ({ value: v, label: PLATFORM_LABELS[v as keyof typeof PLATFORM_LABELS] || v }))}
+            options={MONITORING_PLATFORM_OPTIONS}
             style={{ width: 140, maxWidth: '100%' }}
           />
           <Select

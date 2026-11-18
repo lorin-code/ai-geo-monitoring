@@ -6,7 +6,8 @@ const SchedulerService = require('../services/SchedulerService');
 const ScheduleProjectContextService = require('../services/ScheduleProjectContextService');
 const { authRequired } = require('../middleware/auth');
 
-const MAINLAND_MONITORING_PLATFORMS = ['doubao', 'deepseek'];
+const { getMonitoringPlatforms } = require('../config/monitoringPlatforms');
+const MAINLAND_MONITORING_PLATFORMS = getMonitoringPlatforms();
 
 async function resolveProjectContext(req, source) {
   return ScheduleProjectContextService.resolveProjectContext({ user: req.user, source });
@@ -28,7 +29,7 @@ router.post('/', authRequired, async (req, res) => {
     }
     if (!Array.isArray(platforms) || platforms.length === 0) {
       platforms = ScheduleProjectContextService.defaultPlatformsForContext(
-        AIPlatformService.getAvailablePlatforms().filter(p => MAINLAND_MONITORING_PLATFORMS.includes(p)),
+        (await AIPlatformService.forUser(projectContext.user_id)).getAvailablePlatforms().filter(p => MAINLAND_MONITORING_PLATFORMS.includes(p)),
         projectContext
       );
       if (!Array.isArray(platforms) || platforms.length === 0) {
@@ -41,12 +42,16 @@ router.post('/', authRequired, async (req, res) => {
         '定时任务平台必须包含在项目或 Prompt 的监测平台内'
       );
       if (!platformResult.ok) {
-        return res.status(400).json({ success: false, message: platformResult.message || '定时任务仅支持豆包和 DeepSeek' });
+        return res.status(400).json({ success: false, message: platformResult.message || '请使用已启用的监测平台' });
       }
       platforms = platformResult.platforms;
     }
     if (platforms.length === 0) {
-      return res.status(400).json({ success: false, message: '定时任务仅支持豆包和 DeepSeek' });
+      return res.status(400).json({ success: false, message: '请使用已启用的监测平台' });
+    }
+    const available = (await AIPlatformService.forUser(projectContext.user_id)).getAvailablePlatforms();
+    if (platforms.some((platform) => !available.includes(platform))) {
+      return res.status(400).json({ success: false, message: '请先在个人中心校验并保存所选平台的密钥' });
     }
     if (typeof daily_time !== 'string' || !/^\d{2}:\d{2}$/.test(daily_time)) {
       return res.status(400).json({ success: false, message: 'daily_time 必须是 HH:mm 格式' });
@@ -147,7 +152,7 @@ router.put('/:id', authRequired, async (req, res) => {
         '定时任务平台必须包含在项目或 Prompt 的监测平台内'
       );
       if (!platformResult.ok) {
-        return res.status(400).json({ success: false, message: platformResult.message || '定时任务仅支持豆包和 DeepSeek' });
+        return res.status(400).json({ success: false, message: platformResult.message || '请使用已启用的监测平台' });
       }
       payload.platforms = platformResult.platforms;
     }
@@ -171,6 +176,12 @@ router.put('/:id', authRequired, async (req, res) => {
       payload.enabled = !!enabled;
     }
 
+    if (payload.enabled === true || payload.platforms) {
+      const available = (await AIPlatformService.forUser(payload.user_id || schedule.user_id)).getAvailablePlatforms();
+      if ((payload.platforms || schedule.platforms).some((platform) => !available.includes(platform))) {
+        return res.status(400).json({ success: false, message: '请先在个人中心校验并保存所选平台的密钥' });
+      }
+    }
     await schedule.update(payload);
     await SchedulerService.refresh(schedule.id);
     return res.json({ success: true, message: '任务已更新', data: schedule });

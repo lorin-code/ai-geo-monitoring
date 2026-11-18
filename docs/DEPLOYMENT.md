@@ -27,20 +27,13 @@
   DEFAULT_ADMIN_EMAIL=admin@example.com
   DEFAULT_ADMIN_PASSWORD=<强随机值>
 
-  # AI 平台密钥
-  DEEPSEEK_API_KEY=<你的密钥>
-  DOUBAO_API_KEY=<你的密钥>
-  KIMI_API_KEY=<你的密钥>
-  QIANWEN_API_KEY=<你的密钥>
+  # AI 平台密钥在登录后的个人中心配置，不放入环境变量。
 
   # 可选代理
   HTTPS_PROXY=http://proxy.example.com:8080
   ```
 - 在 `nextjs-frontend/.env.production` 中设置前端构建变量（示例）：
   ```bash
-  NEXT_PUBLIC_API_BASE_URL=/api
-  NEXT_PUBLIC_API_URL=/api
-  NEXT_PUBLIC_SITE_URL=https://example.com
   API_BASE_URL=http://127.0.0.1:3002
   ```
 - **重要**：
@@ -131,7 +124,7 @@ server {
 - 定期更新依赖包：`npm audit fix`
 
 ## 常见问题排查
-- API Key 未配置：`/api/platforms/ping` 显示未配置，请在 `backend/.env` 补充对应密钥
+- API Key 未配置：`/api/platforms/ping` 显示未配置，请在「个人中心 → 模型密钥」校验并保存对应密钥
 - 429/网络错误：后端已包含重试与代理支持，设置 `HTTPS_PROXY`/`HTTP_PROXY` 即可
 - SSE 推流中断：检查 Nginx `proxy_buffering off` 与 `proxy_read_timeout` 配置
 - CORS 错误：检查 `ALLOWED_ORIGINS` 是否包含前端域名

@@ -18,11 +18,13 @@ const { bulkConsumeQuota } = require('../middleware/quota');
 const { authRequired, adminRequired } = require('../middleware/auth');
 const { Op } = require('sequelize');
 const AIPlatformService = require('../services/AIPlatformService');
+const UserPlatformContext = require('../services/UserPlatformContext');
 const ResultParserService = require('../services/ResultParserService');
 const ProjectRecordFinalizationService = require('../services/ProjectRecordFinalizationService');
 const ScheduleProjectContextService = require('../services/ScheduleProjectContextService');
 
-const MAINLAND_MONITORING_PLATFORMS = ['doubao', 'deepseek'];
+const { getMonitoringPlatforms } = require('../config/monitoringPlatforms');
+const MAINLAND_MONITORING_PLATFORMS = getMonitoringPlatforms();
 const SAFE_PLATFORM_FAILURE_MESSAGE = '监测平台调用失败，请稍后重试';
 
 // 获取所有已使用的品牌列表（用于筛选）
@@ -92,12 +94,14 @@ async function saveCompletedDetectionResult({
   const keywordsArr = typeof brandKeywordsStr === 'string'
     ? brandKeywordsStr.split(/[,，]/).map(s => s.trim()).filter(Boolean)
     : [];
-  await ProjectRecordFinalizationService.finalize({
+  const finalize = () => ProjectRecordFinalizationService.finalize({
     record,
     responseText,
     aiResponse,
     keywords: keywordsArr
   });
+  if (UserPlatformContext.get()?.userId === Number(record.user_id)) await finalize();
+  else await UserPlatformContext.run(record.user_id, finalize);
   return record;
 }
 
@@ -140,28 +144,31 @@ router.post('/create', authRequired, async (req, res) => {
       if (!platformResult.ok) {
         return res.status(400).json({
           success: false,
-          message: platformResult.message || '品牌检测仅支持豆包和 DeepSeek'
+          message: platformResult.message || '请使用已启用的监测平台'
         });
       }
-      const available = new Set(AIPlatformService.getAvailablePlatforms());
-      platforms = platformResult.platforms.filter(p => available.has(p));
+      const available = new Set((await AIPlatformService.forUser(projectContext.user_id)).getAvailablePlatforms());
+      if (platformResult.platforms.some(p => !available.has(p))) {
+        return res.status(400).json({ success: false, message: '所选平台未配置有效密钥，请在个人中心校验并保存后使用' });
+      }
+      platforms = platformResult.platforms;
     }
 
     // 若用户显式选择，但筛选后为空，直接报错，避免误用其他平台
     if (hasExplicitSelection && platforms.length === 0) {
       return res.status(400).json({
         success: false,
-        message: '当前没有可用的监测平台，请联系管理员处理'
+        message: '请先在个人中心校验并保存平台密钥'
       });
     }
 
     // 若未显式选择平台，使用当前可用平台列表
     if (!hasExplicitSelection) {
-      const availableList = AIPlatformService.getAvailablePlatforms();
+      const availableList = (await AIPlatformService.forUser(projectContext.user_id)).getAvailablePlatforms();
       if (!Array.isArray(availableList) || availableList.length === 0) {
         return res.status(400).json({
           success: false,
-          message: '当前没有可用的监测平台，请联系管理员处理'
+          message: '请先在个人中心校验并保存平台密钥'
         });
       }
       platforms = ScheduleProjectContextService.defaultPlatformsForContext(
@@ -171,7 +178,7 @@ router.post('/create', authRequired, async (req, res) => {
       if (platforms.length === 0) {
         return res.status(400).json({
           success: false,
-          message: projectContext.project_id ? '当前项目或 Prompt 没有可用的监测平台' : '当前没有可用的监测平台，请联系管理员处理'
+          message: projectContext.project_id ? '当前项目或 Prompt 没有可用的监测平台' : '请先在个人中心校验并保存平台密钥'
         });
       }
     }
@@ -208,7 +215,7 @@ router.post('/create', authRequired, async (req, res) => {
       });
 
       // 异步处理AI查询
-      processAIQuery(questionRecord.id, platform, question);
+      processAIQuery(questionRecord.id, platform, question, user_id);
 
       results.push({
         record_id: questionRecord.id,
@@ -236,7 +243,13 @@ router.post('/create', authRequired, async (req, res) => {
 });
 
 // 异步处理AI查询
-async function processAIQuery(recordId, platform, question) {
+async function processAIQuery(recordId, platform, question, userId) {
+  if (!Number.isSafeInteger(Number(userId)) || Number(userId) <= 0) return;
+  if (UserPlatformContext.get()?.userId !== Number(userId)) {
+    return UserPlatformContext.run(userId, () => processAIQuery(recordId, platform, question, userId)).catch(async () => {
+      await QuestionRecord.update({ status: 'failed', error_message: '读取模型配置失败，请重新配置后重试' }, { where: { id: recordId } });
+    });
+  }
   try {
     // 调用AI平台API
     const aiResult = await AIPlatformService.queryPlatform(platform, question);
@@ -536,17 +549,18 @@ router.get('/stream', authRequired, async (req, res) => {
     }
 
     if (!MAINLAND_MONITORING_PLATFORMS.includes(String(platform).toLowerCase())) {
-      res.write(`data: ${JSON.stringify({ event: 'error', message: '品牌检测仅支持豆包和 DeepSeek' })}\n\n`);
+      res.write(`data: ${JSON.stringify({ event: 'error', message: '请使用已启用的监测平台' })}\n\n`);
       return res.end();
     }
 
-    const cfg = AIPlatformService.platforms[platform];
+    const ai = await AIPlatformService.forUser(projectContext.user_id);
+    const cfg = ai.platforms[platform];
     if (!cfg) {
-      res.write(`data: ${JSON.stringify({ event: 'error', message: '品牌检测仅支持豆包和 DeepSeek' })}\n\n`);
+      res.write(`data: ${JSON.stringify({ event: 'error', message: '请使用已启用的监测平台' })}\n\n`);
       return res.end();
     }
     if (!cfg.apiKey) {
-      res.write(`data: ${JSON.stringify({ event: 'error', message: '当前没有可用的监测平台，请联系管理员处理' })}\n\n`);
+      res.write(`data: ${JSON.stringify({ event: 'error', message: '请先在个人中心校验并保存平台密钥' })}\n\n`);
       return res.end();
     }
 
@@ -556,12 +570,12 @@ router.get('/stream', authRequired, async (req, res) => {
 
     let fullText = '';
 
-    if (platform === 'deepseek' && !AIPlatformService.isSearchEnabled(platform)) {
+    if (platform === 'deepseek' && !ai.isSearchEnabled(platform)) {
       const requestData = {
-        model: AIPlatformService.getModelName(platform),
+        model: ai.getModelName(platform),
         messages: [{ role: 'user', content: question }],
         temperature: 0.7,
-        max_tokens: AIPlatformService.getMaxTokens(platform),
+        max_tokens: ai.getMaxTokens(platform),
         stream: true
       };
 
@@ -607,7 +621,7 @@ router.get('/stream', authRequired, async (req, res) => {
       streamReq.data.on('end', async () => {
         try {
           await saveCompletedDetectionResult({
-            user_id,
+            user_id: projectContext.user_id,
             platform,
             question,
             brand,
@@ -628,10 +642,10 @@ router.get('/stream', authRequired, async (req, res) => {
         res.end();
       });
 
-    } else if (platform === 'doubao' && process.env.DOUBAO_LEGACY_STREAM === 'true') {
+    } else if (platform === 'doubao' && !cfg.userCredential && process.env.DOUBAO_LEGACY_STREAM === 'true') {
       // Ark Doubao 原生 SSE
       const requestData = {
-        model: AIPlatformService.getModelName(platform),
+        model: ai.getModelName(platform),
         messages: [
           { role: 'system', content: 'You are a helpful assistant.' },
           { role: 'user', content: question }
@@ -689,7 +703,7 @@ router.get('/stream', authRequired, async (req, res) => {
         streamReq.data.on('end', async () => {
           try {
             await saveCompletedDetectionResult({
-              user_id,
+              user_id: projectContext.user_id,
               platform,
               question,
               brand,
@@ -717,7 +731,7 @@ router.get('/stream', authRequired, async (req, res) => {
     } else {
       // 非原生流式平台：一次性获取结果并模拟增量输出
       try {
-        const result = await AIPlatformService.queryPlatform(platform, question);
+        const result = await ai.queryPlatform(platform, question);
         if (!result.success) {
           console.error('平台查询失败:', result.error || result.message || platform);
           res.write(`data: ${JSON.stringify({ event: 'error', message: SAFE_PLATFORM_FAILURE_MESSAGE })}\n\n`);
@@ -734,7 +748,7 @@ router.get('/stream', authRequired, async (req, res) => {
         }
         // 持久化记录
         await saveCompletedDetectionResult({
-          user_id,
+          user_id: projectContext.user_id,
           platform,
           question,
           brand,

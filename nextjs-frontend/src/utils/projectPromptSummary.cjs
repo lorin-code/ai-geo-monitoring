@@ -1,4 +1,4 @@
-const MAINLAND_PLATFORMS = ['doubao', 'deepseek'];
+const { MONITORING_PLATFORMS: MAINLAND_PLATFORMS } = require('./monitoringPlatforms.cjs');
 
 function normalizePlatforms(value, fallback = []) {
   const rows = Array.isArray(value) ? value : [];

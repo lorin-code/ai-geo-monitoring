@@ -11,5 +11,6 @@ test('legacy schedule route limits all platform selections to mainland monitorin
   assert.match(routeSource, /defaultPlatformsForContext\(/);
   assert.match(routeSource, /定时任务平台必须包含在项目或 Prompt 的监测平台内/);
   assert.match(routeSource, /if \(!platformResult\.ok\)/);
-  assert.match(routeSource, /AIPlatformService\.getAvailablePlatforms\(\)\.filter\(p => MAINLAND_MONITORING_PLATFORMS\.includes\(p\)\)/);
+  assert.match(routeSource, /AIPlatformService\.forUser\(projectContext\.user_id\)/);
+  assert.match(routeSource, /getAvailablePlatforms\(\)\.filter\(p => MAINLAND_MONITORING_PLATFORMS\.includes\(p\)\)/);
 });
