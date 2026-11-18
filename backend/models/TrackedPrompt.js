@@ -1,5 +1,6 @@
 const { DataTypes } = require('sequelize');
 const sequelize = require('../config/database');
+const { getMonitoringPlatforms } = require('../config/monitoringPlatforms');
 
 const TrackedPrompt = sequelize.define('TrackedPrompt', {
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
@@ -8,7 +9,7 @@ const TrackedPrompt = sequelize.define('TrackedPrompt', {
   user_id: { type: DataTypes.INTEGER, allowNull: false },
   question: { type: DataTypes.TEXT, allowNull: false },
   tags: { type: DataTypes.JSON, allowNull: false, defaultValue: [] },
-  platforms: { type: DataTypes.JSON, allowNull: false, defaultValue: ['doubao', 'deepseek'] },
+  platforms: { type: DataTypes.JSON, allowNull: false, defaultValue: getMonitoringPlatforms() },
   enabled: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true }
 }, {
   tableName: 'tracked_prompts',

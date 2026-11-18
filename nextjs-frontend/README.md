@@ -2,52 +2,30 @@
 
 这是 AI GEO Monitoring System 的 Next.js 前端。
 
-## Getting Started
+## 启动
 
-项目根目录已提供统一启动脚本，开发时优先在根目录执行：
+从仓库根目录复制配置模板并编辑：
 
 ```bash
+cp backend/.env.example backend/.env
+cp nextjs-frontend/.env.example nextjs-frontend/.env.local
 npm run dev
 ```
 
-如需单独启动前端：
+单独启动前端可使用根目录的 `npm run dev:frontend`。
 
-```bash
-cd nextjs-frontend
-npm run dev -- --webpack -p 3001
-```
+## API 配置
 
-默认访问地址：`http://localhost:3001`。
+前端配置文件只需要 `API_BASE_URL` 一个字段，填写后端源站根地址，不带 `/api`。开发示例见同目录 `.env.example`，生产示例为 `API_BASE_URL=https://api.example.com`。
 
-## Environment
+所有浏览器请求（包括通知页面）都使用同域 `/api/*`，由 Next.js 代理到该地址。代码中没有 localhost 回退地址，也无需重复配置 NEXT_PUBLIC API 地址或站点 URL。若由 Nginx 处理 `/api`，可不设置 `API_BASE_URL`。修改代理地址后需重启开发服务或重新构建生产版本。
 
-开发环境可在 `.env.local` 中配置：
+AI 平台密钥由用户在个人中心校验并保存，不写入环境变量。
 
-```bash
-NEXT_PUBLIC_API_BASE_URL=http://localhost:3002
-NEXT_PUBLIC_API_URL=http://localhost:3002
-NEXT_PUBLIC_SITE_URL=http://localhost:3001
-API_BASE_URL=http://localhost:3002
-```
-
-生产同域部署时，客户端 API 地址建议使用 `/api`，由 Nginx 或 Vercel rewrites 反向代理到后端。
-
-Vercel 部署时：
-
-```bash
-NEXT_PUBLIC_API_BASE_URL=/api
-NEXT_PUBLIC_API_URL=/api
-NEXT_PUBLIC_SITE_URL=https://your-vercel-domain.vercel.app
-API_BASE_URL=https://api.example.com
-```
-
-`API_BASE_URL` 填后端源站根地址，不要带 `/api`。
-
-## Commands
+## 检查
 
 ```bash
 npm run build
-PORT=3001 npm run start
 npm run lint
 ```
 

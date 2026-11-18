@@ -11,6 +11,8 @@ const AIPlatformService = require('../services/AIPlatformService');
 const CitationAnalysisService = require('../services/CitationAnalysisService');
 
 function createStreamHarness(context, searchEnabled = 'true') {
+  context.mock.method(AIPlatformService, 'forUser', async () => AIPlatformService);
+  context.mock.method(require('../services/UserPlatformContext'), 'get', () => ({ userId: 9 }));
   const originalConfig = AIPlatformService.platforms.deepseek;
   const keys = ['DEEPSEEK_SEARCH_ENABLED', 'DEEPSEEK_SEARCH_API_URL', 'DEEPSEEK_SEARCH_COUNT'];
   const env = Object.fromEntries(keys.map((key) => [key, process.env[key]]));

@@ -7,5 +7,6 @@ const source = fs.readFileSync(path.resolve(__dirname, '../app/admin/platforms/p
 
 test('admin platform status copy avoids raw API key wording', () => {
   assert.doesNotMatch(source, /API Key|API密钥/);
-  assert.match(source, /平台服务凭证/);
+  assert.match(source, /个人中心/);
+  assert.match(source, /校验/);
 });

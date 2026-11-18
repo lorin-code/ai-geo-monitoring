@@ -1,5 +1,6 @@
 const { DataTypes } = require('sequelize');
 const sequelize = require('../config/database');
+const { getMonitoringPlatforms } = require('../config/monitoringPlatforms');
 
 // 定时检测任务模型
 const DetectionSchedule = sequelize.define('DetectionSchedule', {
@@ -9,7 +10,7 @@ const DetectionSchedule = sequelize.define('DetectionSchedule', {
   tracked_prompt_id: { type: DataTypes.INTEGER, allowNull: true },
   brand: { type: DataTypes.STRING, allowNull: true },
   question: { type: DataTypes.TEXT, allowNull: false },
-  platforms: { type: DataTypes.JSON, allowNull: false, defaultValue: [] },
+  platforms: { type: DataTypes.JSON, allowNull: false, defaultValue: getMonitoringPlatforms() },
   highlight_keywords: { type: DataTypes.JSON, allowNull: false, defaultValue: [] },
   daily_time: { type: DataTypes.STRING, allowNull: false }, // HH:mm
   timezone: { type: DataTypes.STRING, allowNull: false, defaultValue: 'UTC' },

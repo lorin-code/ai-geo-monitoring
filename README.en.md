@@ -13,7 +13,7 @@ For custom development or partnership inquiries, email [lorin.msg@gmail.com](mai
 ### October 18, 2026: Official DeepSeek Search Integration
 
 - Integrated DeepSeek's standalone Search API. Monitoring searches the web before the configured model generates an answer, covering individual checks, brand project analysis, scheduled monitoring, and streaming previews.
-- Search is enabled by default and uses your existing `DEEPSEEK_API_KEY`. You can configure the search toggle, result count, and endpoint. See the [environment variable guide](docs/ENVIRONMENT.md#deepseek-联网监测) (Chinese).
+- Search is enabled by default and uses the DeepSeek key saved in the user profile. You can configure the search toggle and result count. See the [environment variable guide](docs/ENVIRONMENT.md#deepseek-联网监测) (Chinese).
 - Only search results actually cited in an answer are recorded as search citations, with source titles and search origin metadata. Fixed metadata loss during deduplication, conflicting citation numbers and link destinations, and Markdown backticks being included in source URLs.
 - Sentiment analysis and prompt suggestion generation continue to use chat without search. Search errors fail the monitoring request instead of silently falling back to an answer without web search.
 - All 385 backend tests passed. Live integration checks received HTTP 200 from both Search and model endpoints, verifying search results, answer generation, and citation extraction.
@@ -104,9 +104,9 @@ Edit `backend/.env` and configure at least:
 
 - `JWT_SECRET`
 - `DEFAULT_ADMIN_PASSWORD`
-- API keys for the platforms you want to enable, such as `DOUBAO_API_KEY` and `DEEPSEEK_API_KEY`
+- Configure AI keys after signing in under Profile → Model credentials; they are not server environment variables.
 
-For production, also configure `ALLOWED_ORIGINS` and supply sensitive settings such as `DATABASE_URL` and AI platform API keys through environment variables.
+For production, also configure `ALLOWED_ORIGINS` and supply deployment settings such as `DATABASE_URL` through environment variables. Set the backend origin only once in `nextjs-frontend/.env.local` as `API_BASE_URL`; browser requests use same-origin `/api`.
 
 From the repository root, start both services:
 
@@ -146,7 +146,7 @@ npm test
 - Use external PostgreSQL, configured through `DATABASE_URL`.
 - For same-origin API access, configure `API_BASE_URL` as the backend target for the frontend proxy.
 
-Production backend deployments require a strong random `JWT_SECRET`, an `ALLOWED_ORIGINS` allowlist for your production domains, `DATABASE_URL`, and valid API keys for the platforms you use. Never commit real configuration files, access tokens, database connection strings, or API keys.
+Production backend deployments require a strong random `JWT_SECRET`, an `ALLOWED_ORIGINS` allowlist for your production domains, and database configuration. Users manage AI keys in their profiles. Never commit real configuration files, access tokens, database connection strings, or API keys.
 
 See the [deployment and operations guide](docs/DEPLOYMENT.md) (Chinese) for more details.
 

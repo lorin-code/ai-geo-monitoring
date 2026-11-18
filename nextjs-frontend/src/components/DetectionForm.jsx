@@ -1,39 +1,18 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import { Card, Form, Checkbox, Input, Button, Select } from 'antd';
 import { SettingOutlined } from '@ant-design/icons';
-import axios from 'axios';
-
-const PLATFORM_OPTIONS = [
-  { value: 'doubao', label: '豆包' },
-  { value: 'deepseek', label: 'DeepSeek' }
-];
+import useUserPlatforms from '@/hooks/useUserPlatforms';
+import Link from 'next/link';
 
 export default function DetectionForm({ loading, onSubmit }) {
   const [form] = Form.useForm();
-  const [platformAvailability, setPlatformAvailability] = useState({});
-  const [loaded, setLoaded] = useState(false);
+  const { availablePlatforms, options, loading: platformsLoading } = useUserPlatforms();
 
   useEffect(() => {
-    let mounted = true;
-    (async () => {
-      try {
-        const res = await axios.get('/api/platforms/ping');
-        const items = res?.data?.data || [];
-        const map = {};
-        items.forEach(it => { map[it.platform] = !!it.ok; });
-        if (mounted) {
-          setPlatformAvailability(map);
-          setLoaded(true);
-        }
-      } catch {
-        // 若请求失败，保持默认可选，避免影响正常使用
-        if (mounted) setLoaded(true);
-      }
-    })();
-    return () => { mounted = false; };
-  }, []);
+    form.setFieldValue('platforms', availablePlatforms);
+  }, [availablePlatforms, form]);
 
   return (
     <Card
@@ -56,15 +35,12 @@ export default function DetectionForm({ loading, onSubmit }) {
           rules={[{ required: true, message: '请选择至少一个平台' }]}
         >
           <Checkbox.Group
-            options={PLATFORM_OPTIONS.map(p => ({
-              label: p.label,
-              value: p.value,
-              disabled: loaded ? platformAvailability[p.value] === false : false
-            }))}
+            options={options}
             style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}
           />
         </Form.Item>
 
+        <p><Link href="/geo/profile">配置平台密钥</Link>，校验通过后可选择使用。</p>
         <Form.Item
           label="检测问题（每行一个）"
           name="questions"
@@ -94,6 +70,7 @@ export default function DetectionForm({ loading, onSubmit }) {
             type="primary"
             htmlType="submit"
             loading={loading}
+            disabled={platformsLoading || !availablePlatforms.length}
             block
             size="large"
           >

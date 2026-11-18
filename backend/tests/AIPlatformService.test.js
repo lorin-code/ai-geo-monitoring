@@ -77,7 +77,7 @@ test('reports available platforms only for supported mainland monitoring platfor
   AIPlatformService.platforms.qianwen.apiKey = 'qianwen-key';
 
   try {
-    assert.deepEqual(AIPlatformService.getAvailablePlatforms(), ['doubao', 'deepseek']);
+    assert.deepEqual(AIPlatformService.getAvailablePlatforms(), ['doubao', 'deepseek', 'qianwen', 'kimi']);
   } finally {
     AIPlatformService.platforms.doubao.apiKey = originalDoubaoApiKey;
     AIPlatformService.platforms.deepseek.apiKey = originalDeepseekApiKey;

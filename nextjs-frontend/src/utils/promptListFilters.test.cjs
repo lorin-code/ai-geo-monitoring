@@ -42,6 +42,7 @@ test('filters prompts by derived prompt category', () => {
 
 test('normalizes prompt platforms with project platform fallback', () => {
   assert.deepEqual(normalizePromptPlatforms([], ['deepseek']), ['deepseek']);
-  assert.deepEqual(normalizePromptPlatforms(['kimi'], ['doubao']), ['doubao']);
+  assert.deepEqual(normalizePromptPlatforms(['unknown'], ['doubao']), ['doubao']);
+  assert.deepEqual(normalizePromptPlatforms(['kimi'], ['doubao']), ['kimi']);
   assert.deepEqual(normalizePromptPlatforms(['doubao'], ['deepseek']), ['doubao']);
 });

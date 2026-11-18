@@ -13,7 +13,8 @@ const AlertEvaluationService = require('./AlertEvaluationService');
 const PromptCategoryService = require('./PromptCategoryService');
 const { consumeQuotaDirect } = require('../middleware/quota');
 
-const MAINLAND_PLATFORMS = ['doubao', 'deepseek'];
+const { getMonitoringPlatforms } = require('../config/monitoringPlatforms');
+const MAINLAND_PLATFORMS = getMonitoringPlatforms();
 const SAFE_PLATFORM_FAILURE_MESSAGE = '监测平台调用失败，请稍后重试';
 const PLATFORM_MISMATCH_MESSAGE = 'Prompt 的监测平台与项目监测平台不一致，请检查品牌项目监测平台设置';
 
@@ -300,6 +301,10 @@ class ProjectRunService {
       return { ok: false, status: 400, message: PLATFORM_MISMATCH_MESSAGE };
     }
     const targets = this.buildPromptTargets(prompts, AIPlatformService.getAvailablePlatforms(), projectPlatforms);
+    const missingCredentials = targets.length && projectPlatforms.some((platform) => !AIPlatformService.getAvailablePlatforms().includes(platform));
+    if (missingCredentials) {
+      return { ok: false, status: 400, message: '项目包含未配置密钥的平台，请在个人中心校验并保存后运行' };
+    }
     if (!targets.length) {
       if (promptSelectionExplicit && !(Array.isArray(prompts) && prompts.length)) {
         return { ok: false, status: 400, message: '选择的 Prompt 不存在或已停用' };
@@ -307,7 +312,7 @@ class ProjectRunService {
       if (Array.isArray(prompts) && prompts.length && !this.hasPromptProjectPlatformOverlap(prompts, projectPlatforms)) {
         return { ok: false, status: 400, message: PLATFORM_MISMATCH_MESSAGE };
       }
-      return { ok: false, status: 400, message: '没有可运行的启用 Prompt，或监测平台暂不可用' };
+      return { ok: false, status: 400, message: '没有可运行的启用 Prompt，或平台密钥尚未在个人中心校验并保存' };
     }
 
     const quota = await this.consumeRunQuota(runUser.id, targets.length);

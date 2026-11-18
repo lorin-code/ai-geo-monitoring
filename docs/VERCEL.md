@@ -25,7 +25,7 @@ ALLOWED_ORIGINS=https://your-vercel-domain.vercel.app,https://your-domain.com
 DB_STORAGE=database.sqlite
 ```
 
-如果使用 AI 平台能力，还需要补充对应平台的 API Key。
+AI 平台密钥由用户登录后在「个人中心 → 模型密钥」校验并保存，不配置为服务端环境变量。
 
 确认后端健康检查可访问：
 
@@ -53,16 +53,12 @@ Vercel 官方 monorepo 文档建议导入仓库时为每个项目选择对应的
 在 Vercel Project Settings -> Environment Variables 添加：
 
 ```bash
-NEXT_PUBLIC_API_BASE_URL=/api
-NEXT_PUBLIC_API_URL=/api
-NEXT_PUBLIC_SITE_URL=https://your-vercel-domain.vercel.app
 API_BASE_URL=https://api.example.com
 ```
 
 注意：
 
 - `API_BASE_URL` 填后端源站根地址，不要带 `/api`
-- `NEXT_PUBLIC_SITE_URL` 换成最终访问域名
 - 修改环境变量后需要重新部署才会生效
 
 ## 4. 验证

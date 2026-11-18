@@ -6,12 +6,17 @@ const path = require('node:path');
 const { BrandProject, DetectionSchedule, QuestionRecord, TrackedPrompt, User } = require('../models');
 const ProjectRunService = require('../services/ProjectRunService');
 const SchedulerService = require('../services/SchedulerService');
+const CredentialService = require('../services/UserPlatformCredentialService');
+
+test.before((context) => {
+  context.mock.method(CredentialService, 'loadConfigs', async () => ({}));
+});
 
 test('normalizes project monitoring settings for mainland platforms', () => {
   const payload = SchedulerService.normalizeProjectMonitoring({
     monitoring_enabled: true,
     monitoring_time: '8:5',
-    platforms: ['deepseek', 'kimi', 'doubao']
+    platforms: ['deepseek', 'unknown', 'doubao']
   });
 
   assert.equal(payload.monitoring_enabled, true);
@@ -21,21 +26,21 @@ test('normalizes project monitoring settings for mainland platforms', () => {
 
 test('normalizes legacy project schedule platforms within the project platform scope', () => {
   assert.deepEqual(
-    SchedulerService.normalizeSchedulePlatforms(['doubao', 'deepseek', 'kimi'], {
+    SchedulerService.normalizeSchedulePlatforms(['doubao', 'deepseek', 'unknown'], {
       id: 2,
       platforms: ['deepseek']
     }),
     ['deepseek']
   );
   assert.deepEqual(
-    SchedulerService.normalizeSchedulePlatforms(['kimi'], {
+    SchedulerService.normalizeSchedulePlatforms(['unknown'], {
       id: 2,
       platforms: ['doubao']
     }),
     []
   );
   assert.deepEqual(
-    SchedulerService.normalizeSchedulePlatforms(['doubao', 'kimi']),
+    SchedulerService.normalizeSchedulePlatforms(['doubao', 'unknown']),
     ['doubao']
   );
 });

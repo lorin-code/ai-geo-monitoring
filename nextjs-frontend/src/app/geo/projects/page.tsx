@@ -10,17 +10,15 @@ import { isValidWebsiteInput, normalizeList, normalizeNullableText } from '@/uti
 import { getProjectPromptRunBlockReason, getRunnableProjectPromptIds, summarizeProjectPrompts } from '@/utils/projectPromptSummary.cjs';
 import { getApiErrorMessage } from '@/utils/apiErrorMessage.cjs';
 import { getApiRunResultData } from '@/utils/apiRunResult.cjs';
+import { MONITORING_PLATFORMS } from '@/utils/monitoringPlatforms.cjs';
+import useUserPlatforms from '@/hooks/useUserPlatforms';
+import Link from 'next/link';
 
 const { Text } = Typography;
 
-const platformOptions = [
-  { label: '豆包', value: 'doubao' },
-  { label: 'DeepSeek', value: 'deepseek' },
-];
-
 const platformLabels = {
   doubao: '豆包',
-  deepseek: 'DeepSeek',
+  deepseek: 'DeepSeek', qianwen: '千问', kimi: 'Kimi',
 };
 
 const projectRunBlockMessages = {
@@ -39,6 +37,7 @@ const websiteRules = [
 ];
 
 export default function GeoProjectsPage() {
+  const { availablePlatforms, options: platformOptions } = useUserPlatforms();
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [projects, setProjects] = useState([]);
@@ -78,7 +77,7 @@ export default function GeoProjectsPage() {
       website: '',
       industry: '',
       primary_keywords: [],
-      platforms: ['doubao', 'deepseek'],
+      platforms: [...availablePlatforms],
       monitoring_enabled: false,
       monitoring_time: '09:00',
     });
@@ -97,9 +96,9 @@ export default function GeoProjectsPage() {
       website: record.website || '',
       industry: record.industry || '',
       primary_keywords: normalizeList(record.primary_keywords),
-      platforms: normalizeList(record.platforms).filter((item) => platformLabels[item]).length
-        ? normalizeList(record.platforms).filter((item) => platformLabels[item])
-        : ['doubao', 'deepseek'],
+      platforms: normalizeList(record.platforms).filter((item) => MONITORING_PLATFORMS.includes(item)).length
+        ? normalizeList(record.platforms).filter((item) => MONITORING_PLATFORMS.includes(item))
+        : [...MONITORING_PLATFORMS],
       monitoring_enabled: !!record.monitoring_enabled,
       monitoring_time: record.monitoring_time || '09:00',
     });
@@ -116,11 +115,14 @@ export default function GeoProjectsPage() {
         website: normalizeNullableText(values.website),
         industry: normalizeNullableText(values.industry),
         primary_keywords: normalizeList(values.primary_keywords, { exclude: [name] }),
-        platforms: normalizeList(values.platforms).filter((item) => platformLabels[item]),
+        platforms: normalizeList(values.platforms).filter((item) => MONITORING_PLATFORMS.includes(item)),
         monitoring_enabled: !!values.monitoring_enabled,
         monitoring_time: normalizeNullableText(values.monitoring_time) || '09:00',
       };
-      if (!payload.platforms.length) payload.platforms = ['doubao', 'deepseek'];
+      if (!payload.platforms.length || payload.platforms.some((platform) => !availablePlatforms.includes(platform))) {
+        message.warning('请先在个人中心校验并保存所选平台的密钥');
+        return;
+      }
       if (editingProject?.id) {
         await axios.put(`/api/geo-projects/${editingProject.id}`, payload);
         message.success('品牌项目已更新');
@@ -164,6 +166,10 @@ export default function GeoProjectsPage() {
   };
 
   const runProject = async (record) => {
+    if (normalizeList(record.platforms).some((platform) => !availablePlatforms.includes(platform))) {
+      message.warning('请先在个人中心校验并保存项目平台的密钥');
+      return;
+    }
     const prompts = Array.isArray(record.trackedPrompts) ? record.trackedPrompts : [];
     const runnablePromptIds = getRunnableProjectPromptIds(prompts, record.platforms);
     if (!runnablePromptIds.length) {
@@ -311,8 +317,8 @@ export default function GeoProjectsPage() {
       key: 'platforms',
       width: 150,
       render: (values) => {
-        const list = normalizeList(values).filter((item) => platformLabels[item]);
-        const platforms = list.length ? list : ['doubao', 'deepseek'];
+        const list = normalizeList(values).filter((item) => MONITORING_PLATFORMS.includes(item));
+        const platforms = list.length ? list : MONITORING_PLATFORMS;
         return (
           <Space wrap size={[4, 4]}>
             {platforms.map((item) => <Tag color="processing" key={item}>{platformLabels[item]}</Tag>)}
@@ -397,7 +403,9 @@ export default function GeoProjectsPage() {
         const promptSummary = summarizeProjectPrompts(row.trackedPrompts, row.platforms);
         const blockReason = row.status === 'archived'
           ? '归档项目请先恢复后再运行'
-          : getProjectPromptRunBlockReason(row.trackedPrompts, row.platforms);
+          : normalizeList(row.platforms).some((platform) => !availablePlatforms.includes(platform))
+            ? '请先在个人中心校验并保存项目平台的密钥'
+            : getProjectPromptRunBlockReason(row.trackedPrompts, row.platforms);
         const disabledReason = typeof blockReason === 'string'
           ? (projectRunBlockMessages[blockReason] || blockReason)
           : '';
@@ -408,7 +416,7 @@ export default function GeoProjectsPage() {
                 <Button
                   size="small"
                   loading={runningProjectId === row.id}
-                  disabled={row.status === 'archived' || !promptSummary.runnable}
+                  disabled={Boolean(disabledReason) || !promptSummary.runnable}
                   onClick={() => runProject(row)}
                 >
                   运行分析
@@ -505,8 +513,9 @@ export default function GeoProjectsPage() {
             <SelectTags placeholder="输入品牌词、产品词并回车添加" />
           </Form.Item>
           <Form.Item name="platforms" label="监测平台" rules={[{ required: true, message: '请选择监测平台' }]}>
-            <Select mode="multiple" options={platformOptions} placeholder="选择豆包或 DeepSeek" />
+            <Select mode="multiple" options={platformOptions} placeholder="选择已校验密钥的平台" />
           </Form.Item>
+          <Typography.Paragraph type="secondary">未配置有效密钥的平台不可选。<Link href="/geo/profile">前往个人中心配置密钥</Link></Typography.Paragraph>
           <Form.Item name="monitoring_enabled" label="自动监测" valuePropName="checked">
             <Switch checkedChildren="开启" unCheckedChildren="关闭" />
           </Form.Item>

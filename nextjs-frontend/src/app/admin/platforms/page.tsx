@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { Card, Tag, Space, Button, message, Typography } from 'antd';
 import axios from 'axios';
+import Link from 'next/link';
 
 const { Paragraph } = Typography;
 
@@ -26,7 +27,7 @@ export default function AdminPlatformsPage() {
   return (
     <Card title="平台配置" extra={<Button onClick={fetchPing}>刷新</Button>}>
       <Paragraph type="secondary" style={{ marginBottom: 16 }}>
-        以下为平台连通性自检结果（根据后端环境变量是否配置平台服务凭证决定启用与否）。
+        以下为当前账号的平台配置状态。请在<Link href="/geo/profile">个人中心</Link>填写密钥并校验，通过后可选择使用。
       </Paragraph>
       {loading ? (
         <div style={{ textAlign: 'center', padding: '20px' }}>加载中...</div>

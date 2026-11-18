@@ -1,22 +1,8 @@
 import axios from 'axios';
 
-function normalizeApiBase(value) {
-  const base = (value || '').trim().replace(/\/+$/, '');
-
-  if (!base || base === '/api') {
-    return '';
-  }
-
-  return base.endsWith('/api') ? base.slice(0, -4) : base;
-}
-
-const API_BASE = normalizeApiBase(
-  process.env.NEXT_PUBLIC_API_BASE_URL ||
-  process.env.NEXT_PUBLIC_API_URL ||
-  ''
-);
-
-axios.defaults.baseURL = API_BASE;
+// All callers use /api/* on the current origin. API_BASE_URL in the frontend
+// environment config controls the Next.js proxy target; no host is bundled here.
+axios.defaults.baseURL = '';
 
 // 确保拦截器只注册一次
 let interceptorsInitialized = false;

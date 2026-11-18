@@ -5,6 +5,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { Card, Descriptions, Space, Button, Tag, Statistic, message } from 'antd';
 import axios from 'axios';
 import { getApiErrorMessage } from '@/utils/apiErrorMessage.cjs';
+import PlatformCredentials from '@/components/PlatformCredentials';
 
 const levelColors = {
   free: 'default',
@@ -75,6 +76,7 @@ export default function GeoProfilePage() {
 
   return (
     <Space orientation="vertical" size="large" style={{ width: '100%' }}>
+      <PlatformCredentials />
       <Card
         title="个人信息"
         loading={loading}

@@ -14,7 +14,7 @@ test('keyword statistics route loads stored keyword counts', () => {
 });
 
 test('statistics routes only aggregate mainland monitoring platforms', () => {
-  assert.match(routeSource, /MAINLAND_MONITORING_PLATFORMS\s*=\s*\[\s*'doubao'\s*,\s*'deepseek'\s*\]/);
+  assert.match(routeSource, /MAINLAND_MONITORING_PLATFORMS\s*=\s*\[\s*'doubao'\s*,\s*'deepseek'\s*,\s*'qianwen'\s*,\s*'kimi'\s*\]/);
   assert.match(routeSource, /function\s+withMainlandPlatformScope/);
   assert.doesNotMatch(routeSource, /where:\s*whereClause/);
   assert.doesNotMatch(routeSource, /where:\s*metricWhereClause/);

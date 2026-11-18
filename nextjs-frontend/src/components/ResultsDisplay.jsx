@@ -10,7 +10,7 @@ import { FileTextOutlined } from '@ant-design/icons';
 
 const PLATFORM_OPTIONS = [
   { value: 'doubao', label: '豆包' },
-  { value: 'deepseek', label: 'DeepSeek' }
+  { value: 'deepseek', label: 'DeepSeek' }, { value: 'qianwen', label: '千问' }, { value: 'kimi', label: 'Kimi' }
 ];
 
 const ResultsDisplay = ({ results, highlightKeywords = [], loading = false }) => {

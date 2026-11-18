@@ -3,6 +3,7 @@ node_modules/
 **/node_modules/
 
 # environment and secrets
+.platform-credential-key
 .env
 .env.*
 !.env.example

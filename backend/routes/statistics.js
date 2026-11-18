@@ -7,7 +7,7 @@ const AccessControlService = require('../services/AccessControlService');
 const StatisticsService = require('../services/StatisticsService');
 const ProjectMetricsService = require('../services/ProjectMetricsService');
 
-const MAINLAND_MONITORING_PLATFORMS = ['doubao', 'deepseek'];
+const MAINLAND_MONITORING_PLATFORMS = ['doubao', 'deepseek', 'qianwen', 'kimi'];
 
 function ensureUserScopedAccess(req, res, userId) {
   if (AccessControlService.canAccessUser(req.user, userId)) return true;

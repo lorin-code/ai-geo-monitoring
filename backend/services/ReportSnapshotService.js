@@ -63,8 +63,8 @@ class ReportSnapshotService {
     });
   }
 
-  async generate({ project, user, days, repositories = defaultRepositories }) {
-    const payload = await this.buildSnapshotPayload({ project, user, days, repositories });
+  async generate({ project, user, days, repositories = defaultRepositories, now = new Date() }) {
+    const payload = await this.buildSnapshotPayload({ project, user, days, repositories, now });
     return repositories.ReportSnapshot.create(payload);
   }
 
@@ -148,6 +148,7 @@ class ReportSnapshotService {
       period_end: periodEnd,
       summary: {
         period_days: safeDays,
+        monitoring_platforms: projectPlatforms,
         ...ProjectMetricsService.summarize(metricRows),
         ...ProjectMetricsService.summarizeRuns(records),
         categories: ProjectMetricsService.buildPromptCoverage(promptRows, metricRows, records),

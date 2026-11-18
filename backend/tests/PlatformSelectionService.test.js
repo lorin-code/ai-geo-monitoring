@@ -4,10 +4,10 @@ const assert = require('node:assert/strict');
 const PlatformSelectionService = require('../services/PlatformSelectionService');
 
 test('rejects unsupported explicit monitoring platforms instead of silently defaulting', () => {
-  const result = PlatformSelectionService.validate(['deepseek', 'kimi']);
+  const result = PlatformSelectionService.validate(['deepseek', 'unknown']);
 
   assert.equal(result.ok, false);
-  assert.deepEqual(result.invalid_platforms, ['kimi']);
+  assert.deepEqual(result.invalid_platforms, ['unknown']);
   assert.match(result.message, /豆包|DeepSeek/);
 });
 
@@ -15,7 +15,7 @@ test('defaults empty monitoring platforms to mainland AI platforms', () => {
   const result = PlatformSelectionService.validate([]);
 
   assert.equal(result.ok, true);
-  assert.deepEqual(result.platforms, ['doubao', 'deepseek']);
+  assert.deepEqual(result.platforms, ['doubao', 'deepseek', 'qianwen', 'kimi']);
 });
 
 test('builds platform status only for mainland monitoring platforms', () => {
@@ -26,9 +26,9 @@ test('builds platform status only for mainland monitoring platforms', () => {
     qianwen: { name: '千问', apiKey: 'qianwen-key' }
   });
 
-  assert.deepEqual(statuses.map((item) => item.platform), ['doubao', 'deepseek']);
-  assert.deepEqual(statuses.map((item) => item.ok), [true, false]);
-  assert.deepEqual(statuses.map((item) => item.message), ['平台服务凭证已配置', '平台服务凭证未配置']);
+  assert.deepEqual(statuses.map((item) => item.platform), ['doubao', 'deepseek', 'qianwen', 'kimi']);
+  assert.deepEqual(statuses.map((item) => item.ok), [true, false, true, true]);
+  assert.deepEqual(statuses.map((item) => item.message), ['平台服务凭证已配置', '平台服务凭证未配置', '平台服务凭证已配置', '平台服务凭证已配置']);
 });
 
 test('defaults prompt platforms to the selected project platforms', () => {

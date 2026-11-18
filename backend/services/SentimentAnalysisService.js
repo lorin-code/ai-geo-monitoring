@@ -125,14 +125,15 @@ class SentimentAnalysisService {
   }
 
   async analyzeWithDeepSeek({ responseText, brand, competitors }) {
-    if (!AIPlatformService.platforms.deepseek?.apiKey) {
+    const platform = AIPlatformService.platforms.deepseek?.apiKey ? 'deepseek' : AIPlatformService.getAvailablePlatforms()[0];
+    if (!platform) {
       return this.neutral(SENTIMENT_UNAVAILABLE_REASON);
     }
 
     const question = this.buildAnalysisQuestion({ responseText, brand, competitors });
     let result;
     try {
-      result = await AIPlatformService.queryPlatform('deepseek', question, { search: false });
+      result = await AIPlatformService.queryPlatform(platform, question, { search: false });
     } catch (error) {
       console.warn('DeepSeek 情绪判定异常:', error?.message || error);
       return this.neutral(SENTIMENT_UNAVAILABLE_REASON);

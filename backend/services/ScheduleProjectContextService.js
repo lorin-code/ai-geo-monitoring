@@ -73,6 +73,7 @@ function validatePlatformsWithinContext(platforms, projectContext, message = 'ç›
 }
 
 function defaultPlatformsForContext(availablePlatforms, projectContext) {
+  if (!Array.isArray(availablePlatforms) || !availablePlatforms.length) return [];
   const result = PlatformSelectionService.validate(availablePlatforms);
   const mainlandAvailable = result.ok ? result.platforms : [];
   if (!projectContext?.project_id) return mainlandAvailable;

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Card, Typography, Alert, Space, Button, Skeleton } from 'antd';
 import axios from 'axios';
 
@@ -9,23 +9,17 @@ export default function GeoNoticePage() {
   const [notice, setNotice] = useState('');
   const [updatedAt, setUpdatedAt] = useState<string | null>(null);
 
-  const API_BASE = useMemo(() => (
-    process.env.NEXT_PUBLIC_API_BASE_URL ||
-    process.env.NEXT_PUBLIC_API_URL ||
-    'http://localhost:3000'
-  ).replace(/\/$/, ''), []);
-
   const fetchNotice = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await axios.get(`${API_BASE}/api/settings/notice`);
+      const res = await axios.get('/api/settings/notice');
       const data = res?.data?.data || {};
       setNotice(String(data.notice || ''));
       setUpdatedAt(data.updated_at || null);
     } catch {
       // no-op
     } finally { setLoading(false); }
-  }, [API_BASE]);
+  }, []);
 
   useEffect(() => { fetchNotice(); }, [fetchNotice]);
 

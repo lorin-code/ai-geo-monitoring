@@ -15,7 +15,7 @@ test('legacy detection route limits explicit platform selections to mainland mon
 test('legacy detection route defaults only to mainland monitoring platforms', () => {
   assert.match(routeSource, /availableList[\s\S]*filter\(p => MAINLAND_MONITORING_PLATFORMS\.includes\(p\)\)/);
   assert.match(routeSource, /defaultPlatformsForContext\(/);
-  assert.match(routeSource, /message: '当前没有可用的监测平台，请联系管理员处理'/);
+  assert.match(routeSource, /message: '请先在个人中心校验并保存平台密钥'/);
 });
 
 test('legacy detection route avoids provider configuration wording in user responses', () => {
@@ -35,5 +35,5 @@ test('legacy async detection guards empty AI responses before creating result de
 });
 
 test('legacy detection route lets doubao streaming fall back to shared platform query by default', () => {
-  assert.match(routeSource, /platform === 'doubao' && process\.env\.DOUBAO_LEGACY_STREAM === 'true'/);
+  assert.match(routeSource, /platform === 'doubao' && !cfg\.userCredential && process\.env\.DOUBAO_LEGACY_STREAM === 'true'/);
 });

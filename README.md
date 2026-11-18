@@ -13,7 +13,7 @@ GoodieAI GEO Monitoring System 是一个面向 Generative Engine Optimization（
 ### 2026-10-18：DeepSeek 官方搜索接入
 
 - 接入 DeepSeek 官方独立 Search API，监测时先搜索再由当前模型结合资料回答，覆盖普通检测、项目分析、定时监测与流式预览。
-- 默认开启搜索，复用现有 `DEEPSEEK_API_KEY`；新增搜索开关、结果条数与自定义接口地址配置，详见 [环境变量说明](docs/ENVIRONMENT.md#deepseek-联网监测)。
+- 默认开启搜索，复用用户在个人中心保存的 DeepSeek 密钥；提供搜索开关和结果条数配置，详见 [环境变量说明](docs/ENVIRONMENT.md#deepseek-联网监测)。
 - 仅将回答实际使用的搜索结果记录为搜索引用，保留来源标题与搜索标记；修复重复来源丢失元数据、引用编号与链接目标冲突，以及 Markdown 反引号污染 URL 的问题。
 - 情绪判定和 Prompt 建议生成保持纯对话；搜索失败会让本次监测失败，避免静默回退为无搜索回答。
 - 后端 385 项测试通过；真实联调中 Search 与模型回答均返回 HTTP 200，完成搜索结果、回答与引用提取验证。
@@ -97,9 +97,9 @@ cp nextjs-frontend/.env.example nextjs-frontend/.env.local
 
 - `JWT_SECRET`
 - `DEFAULT_ADMIN_PASSWORD`
-- 需要启用的平台 API Key，例如 `DOUBAO_API_KEY`、`DEEPSEEK_API_KEY`
+- AI 平台密钥由各用户登录后在「个人中心 → 模型密钥」校验并保存，无需写入环境变量
 
-生产环境还应配置 `ALLOWED_ORIGINS`，并通过环境变量注入 `DATABASE_URL`、AI 平台密钥等敏感配置。
+生产环境还应配置 `ALLOWED_ORIGINS`，并通过环境变量注入 `DATABASE_URL` 等部署配置。前端后端地址只需配置 `nextjs-frontend/.env.local` 的 `API_BASE_URL`，浏览器统一使用同域 `/api`。
 
 在仓库根目录统一启动前后端：
 
@@ -139,7 +139,7 @@ npm test
 - 数据库建议使用外部 Postgres，并通过 `DATABASE_URL` 配置
 - 前端如需同域调用后端 API，可配置 `API_BASE_URL` 作为代理目标
 
-后端生产环境必须配置强随机 `JWT_SECRET`、生产域名白名单 `ALLOWED_ORIGINS`、`DATABASE_URL` 和实际使用的 AI 平台密钥。不要把真实配置文件、访问令牌、数据库连接串或 API Key 提交到仓库。
+后端生产环境必须配置强随机 `JWT_SECRET`、生产域名白名单 `ALLOWED_ORIGINS`和数据库配置；模型密钥由用户在个人中心管理。不要把真实配置文件、访问令牌、数据库连接串或 API Key 提交到仓库。
 
 更多部署细节见 [部署与运维](docs/DEPLOYMENT.md)。
 
